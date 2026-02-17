@@ -89,9 +89,14 @@ jobs:
       - name: Configure git safe.directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Fast-forward main from dev
+      - name: Fast-forward release branch from dev
         run: |
-          git fetch origin dev main
-          git checkout main
+          git fetch origin dev main master
+          if git show-ref --verify --quiet refs/remotes/origin/main; then
+            TARGET_BRANCH=main
+          else
+            TARGET_BRANCH=master
+          fi
+          git checkout "$TARGET_BRANCH"
           git merge --ff-only origin/dev
-          git push origin main
+          git push origin "$TARGET_BRANCH"
