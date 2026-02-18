@@ -74,7 +74,7 @@ jobs:
           name: app-release
           path: android/app/build/outputs/apk/release/app-release.apk
 
-  publish_apk:
+  publish_dev_apk:
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/dev' && needs.build.result == 'success'
@@ -94,10 +94,30 @@ jobs:
           files: app-release.apk
           overwrite_files: true
 
+  publish_release_apk:
+    runs-on: ubuntu-latest
+    needs: build
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && needs.build.result == 'success'
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release
+
+      - name: Publish release APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: release-apk
+          name: release-apk
+          files: app-release.apk
+          overwrite_files: true
+
   promote:
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/dev' && needs.build.result == 'success'
+    if: github.ref == 'refs/heads/dev' && needs.build.result == 'success' && github.event_name == 'push'
     permissions:
       contents: write
     steps:
