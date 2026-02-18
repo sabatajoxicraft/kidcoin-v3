@@ -45,6 +45,21 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
+    "extra": {
+      "firebase": {
+        "apiKey": "",
+        "authDomain": "",
+        "projectId": "",
+        "storageBucket": "",
+        "messagingSenderId": "",
+        "appId": ""
+      },
+      "google": {
+        "iosClientId": "",
+        "androidClientId": "",
+        "webClientId": ""
+      }
+    },
     "splash": {
       "image": "./src/assets/branding/splash-icon.png",
       "backgroundColor": "#ffffff",
