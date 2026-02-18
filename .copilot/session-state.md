@@ -3,52 +3,50 @@
 > 🔄 AI AGENTS: Read this FIRST to understand where we left off. Update after EVERY work session.
 
 ## Last Session
-- **Date**: 2026-02-16
-- **Duration**: [Approximate time spent]
-- **Agent/Model**: [Who did the work]
+- **Date**: 2026-02-18
+- **Duration**: ~1 session (exact duration not recorded)
+- **Agent/Model**: Copilot CLI (MDDF workflow)
 
 ## Current Position
-- **Active Milestone**: [Link to current-milestone.md or "None"]
-- **Last Completed Task**: [What was finished]
-- **Next Task**: [What should happen next]
-- **Files Modified**: [List of files changed in last session]
+- **Active Milestone**: `.copilot/current-milestone.md` (M1 Authentication + Family Setup)
+- **Last Completed Task**: Parent auth foundation (Google Sign-In + Firebase session handling + parent profile upsert/sign-out flow)
+- **Next Task**: Implement family creation, add-child + PIN handling, and parent/child role gating
+- **Files Modified**: `app/_layout.tsx`, `app/(auth)/sign-in.tsx`, `app/(auth)/_layout.tsx`, `contexts/auth-context.tsx`, `hooks/use-auth.ts`, `lib/firebase.ts`, `.copilot/current-milestone.md`
 
 ## Work In Progress
-[Anything started but not finished - pick up here]
-- [ ] [Incomplete task 1]
-- [ ] [Incomplete task 2]
+- [ ] Family creation flow (family ID + owner linkage)
+- [ ] Add-child flow (name, age group, PIN data)
+- [ ] Parent/child role-based route and access gating
 
 ## Blockers
-[Issues preventing progress - resolve before continuing]
-- [ ] **Blocker**: [Description] | **Needs**: [What's required to unblock]
+- [ ] No active blockers
 
 ## Context for Next Session
-[Important information the next AI/session needs to know]
-- 
-- 
+- Auth scaffolding is in place and commit history shows foundation landed in `f8ba2c7`.
+- Current milestone is still M1 in progress; family/child/role work has not been implemented yet.
 
 ## Recent Decisions
-[Decisions made that affect future work - prevents re-litigating]
 | Decision | Rationale | Date |
 |----------|-----------|------|
-| [What was decided] | [Why] | [When] |
+| Keep Expo React Native baseline | Existing entrypoint/scripts/deps and CI are Expo-aligned | 2026-02-16 |
+| Start M1 with auth foundation first | Family and role features depend on authenticated session context | 2026-02-18 |
 
 ---
 
 ## Session Log
 [Append each session - newest first]
 
-### 2026-02-16 - [MILESTONE NAME]
+### 2026-02-18 - M1 Authentication + Family Setup
 **Completed:**
-- [Task 1]
-- [Task 2]
+- Added Firebase Google sign-in foundation and auth session wiring.
+- Added parent profile upsert on sign-in and sign-out handling.
 
 **Started but incomplete:**
-- [Task 3] - [Why incomplete]
+- Family/child setup and role gating - deferred to next implementation slice.
 
 **Decisions made:**
-- [Decision]
+- Keep Expo RN baseline and continue M1 in auth→family→role sequence.
 
 **Next session should:**
-- [Action 1]
-- [Action 2]
+- Implement family creation + child profile flow.
+- Add role-based routing/access restrictions for parent vs child sessions.

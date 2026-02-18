@@ -1,6 +1,7 @@
 # M0 + M0.5 Tasks
 
 > Create via shrimp-tasks-split_tasks with updateMode: "clearAllTasks"
+> Historical reference: M0 and M0.5 are complete; current active phase is M1.
 
 ===
 
@@ -8,7 +9,7 @@
 | Field | Value |
 |-------|-------|
 | Name | kidcoin-v3 |
-| Stack | React Native (no Expo) |
+| Stack | Expo React Native |
 | Platform | Mobile (Android/iOS) |
 
 **Description:** KidCoin is a React Native family financial education app for South African families that turns chores and educational activities into a points economy where children earn points (default 10 points = R1) and parents approve rewards.  Core MVP: Firebase Google auth for parents, family + multi-child profiles with role-based access and child PIN kiosk mode, task creation/assignment (including recurring and team tasks), child photo evidence submission, parent approval/return feedback workflow, points ledger + transaction history, payout request/approval with configurable minimum threshold, age-banded financial lessons (Junior/Standard/Teen) with quizzes and rewards, badges/streaks dashboards, push notifications, real-time Firestore sync with offline support, Firebase Storage image handling, and accessible dark-mode mobile UI.  Out of scope for v1: social/leaderboards, direct payment rails, AI suggestions, multi-currency, and web portal.
@@ -44,7 +45,7 @@ Use React Native compatible components.
 | Agent | Architect |
 | Dependencies | M0-T2 |
 
-Create MDDF structure. Configure NativeWind, TypeScript strict.
+Create MDDF structure. Configure Expo-compatible styling setup and TypeScript strict.
 
 ---
 
@@ -113,7 +114,7 @@ IF BUILD FAILS:
 | Agent | OVERSEER |
 | Dependencies | M0.5-T3 |
 
-Freeze: babel, metro, tailwind, tsconfig, package.json deps.
+Freeze: babel, metro, Expo config, tsconfig, package.json deps.
 Document working versions in decision-log.md.
 
 ===

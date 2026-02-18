@@ -9,7 +9,7 @@
 | Field | Value |
 |-------|-------|
 | Created | 2026-02-16 |
-| Updated | 2026-02-16 |
+| Updated | 2026-02-18 |
 | Framework | MDDF v2.0 |
 
 ===
@@ -18,8 +18,8 @@
 | Field | Value |
 |-------|-------|
 | Name | kidcoin-v3 |
-| Description | [COMPREHENSIVE_PROJECT_DESCRIPTION] |
-| Tech Stack | [Auto-detected] |
+| Description | Expo React Native family financial education app for South African families. |
+| Tech Stack | Expo SDK 54, React Native, Expo Router, Firebase Auth/Firestore, TypeScript |
 
 ===
 
@@ -77,17 +77,16 @@
 ### Architecture
 | Standard | Value |
 |----------|-------|
-| Design | Atomic Design (atoms→molecules→organisms→templates→pages) |
-| Styling | Tailwind CSS + shadcn/ui |
-| Icons | Material Icons (primary), Lucide (fallback) |
+| Design | React Native component composition (shared UI components + screen-level composition) |
+| Styling | React Native `StyleSheet` + themed components (no web-only styling assumptions) |
+| Icons | Expo Vector Icons / Material Symbols |
 | Types | TypeScript strict mode (no `any`) |
 
 ### File Structure
 ```
-src/
-├── components/{atoms,molecules,organisms,templates}
-├── pages/ (or screens/ for mobile)
-├── hooks/, utils/, services/, stores/, theme/, types/, lib/
+app/ (Expo Router route groups/screens)
+components/ (shared RN UI)
+hooks/, contexts/, lib/, constants/, assets/, src/
 ```
 
 ### Quality Gates

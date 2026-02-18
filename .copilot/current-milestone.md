@@ -12,7 +12,7 @@
 Deliver a working authentication and family setup flow where a parent can sign in, create a family, add child profiles with age groups and PINs, and enforce parent/child role access as the foundation for all M1+ features.
 
 ## Deliverables
-- [ ] Deliverable 1: Parent authentication flow using Firebase Auth Google Sign-In is functional end-to-end.
+- [x] Deliverable 1: Parent authentication flow using Firebase Auth Google Sign-In is functional end-to-end.
 - [ ] Deliverable 2: Family setup flow supports creating a family and adding child profiles (Junior/Standard/Teen) with PIN-based access data.
 - [ ] Deliverable 3: Role-based session gating routes Parent and Child users to correct app capabilities.
 
@@ -34,7 +34,7 @@ Deliver a working authentication and family setup flow where a parent can sign i
 - [ ] Task 3.3: Validate parent can manage multiple child profiles in one family context.
 
 ## Acceptance Criteria
-- [ ] Criterion 1: Parent can authenticate with Google Sign-In and reach authenticated app state without manual token handling.
+- [x] Criterion 1: Parent can authenticate with Google Sign-In and reach authenticated app state without manual token handling.
 - [ ] Criterion 2: Parent can create a family and add at least one child profile with valid age group and PIN.
 - [ ] Criterion 3: Child PIN is never stored in plaintext (stored value is hashed).
 - [ ] Criterion 4: Parent and Child sessions are routed to role-appropriate views/actions.
@@ -65,4 +65,9 @@ Deliver a working authentication and family setup flow where a parent can sign i
 ### 2026-02-17
 - Completed: Milestone activated and scoped to M1 Authentication + Family Setup with testable deliverables/tasks.
 - Next: Implement Deliverable 1 authentication flow, then family setup, then role gating.
+- Blockers: None.
+
+### 2026-02-18
+- Completed: Authentication foundation landed (Google Sign-In + Firebase session handling + parent profile upsert/sign-out flow).
+- Next: Implement family creation/add-child flow and parent/child role-based routing and access gating.
 - Blockers: None.

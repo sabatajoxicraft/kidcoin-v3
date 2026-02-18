@@ -11,36 +11,37 @@
 
 ## Decisions
 
-### [DECISION-001] [Short Title]
+### [DECISION-001] Expo React Native Baseline
 - **Date**: 2026-02-16
-- **Status**: Active | Superseded | Reversed
-- **Category**: Architecture | Tech Stack | Design | Process | Security
-- **Decision**: [What was decided]
-- **Context**: [Why this decision was needed]
-- **Options Considered**:
-  1. [Option A] - [Pros/Cons]
-  2. [Option B] - [Pros/Cons]
-- **Rationale**: [Why this option was chosen]
-- **Consequences**: [What this means for the project]
-- **Supersedes**: [Previous decision ID if applicable]
+- **Status**: Active
+- **Category**: Tech Stack
+- **Decision**: Keep the project on Expo + React Native with Expo Router and TypeScript.
+- **Context**: Project entry point/scripts/dependencies are Expo-based (`expo-router/entry`, Expo scripts in `package.json`).
+- **Rationale**: Existing scaffold and CI path already align with Expo.
+- **Consequences**: Standards and gates must be RN/Expo aligned and avoid web-only assumptions.
 
----
-
-<!-- Copy template above for new decisions -->
+### [DECISION-002] M1 Started with Auth Foundation
+- **Date**: 2026-02-18
+- **Status**: Active
+- **Category**: Architecture
+- **Decision**: Implement authentication/session foundation first, then family/child and role gating.
+- **Context**: Commit `f8ba2c7` introduced Firebase Google sign-in flow, auth context, session routing, and parent profile upsert.
+- **Rationale**: Family-scoped and role-gated features depend on authenticated session context.
+- **Consequences**: M1 remains in progress; family creation, child PIN flow, and role gating are still pending.
 
 ## Decision Index by Category
 
 ### Architecture
-- [DECISION-XXX] [Title]
+- [DECISION-002] M1 Started with Auth Foundation
 
 ### Tech Stack
-- [DECISION-XXX] [Title]
+- [DECISION-001] Expo React Native Baseline
 
 ### Design
-- [DECISION-XXX] [Title]
+- None recorded.
 
 ### Process
-- [DECISION-XXX] [Title]
+- None recorded.
 
 ### Security
-- [DECISION-XXX] [Title]
+- None recorded.
