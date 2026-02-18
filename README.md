@@ -42,6 +42,17 @@ To learn more about developing your project with Expo, look at the following res
 - [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
 - [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
 
+## CI/CD & Monitoring
+
+This project includes automated workflows for building, testing, and monitoring:
+
+- **Android Build** - Automated Android app builds with artifact publishing
+- **iOS Build** - iOS build workflow (requires Apple Developer credentials)
+- **Quality Checks** - Automated linting and type checking on PRs
+- **Workflow Monitor** - Tracks and reports status of all workflow runs
+
+For details on the monitoring system, see [Workflow Monitoring Documentation](.github/workflows/WORKFLOW-MONITORING.md).
+
 ## Join the community
 
 Join our community of developers creating universal apps.
