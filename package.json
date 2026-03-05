@@ -10,7 +10,11 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "build:android": "npx expo prebuild --platform android && cd android && ./gradlew assembleRelease"
+    "build:android": "npx expo prebuild --platform android && cd android && ./gradlew assembleRelease",
+    "apk:watch": "./scripts/apk-watcher.sh",
+    "apk:watch:once": "./scripts/apk-watcher.sh --once",
+    "apk:sync": "./scripts/apk-sync.sh",
+    "apk:sync:once": "./scripts/apk-sync.sh --once"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
