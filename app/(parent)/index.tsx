@@ -22,7 +22,10 @@ export default function ParentDashboard() {
 
   const renderChild = ({ item }: { item: ChildProfile }) => (
     <View style={[styles.childItem, { borderColor: tintColor + '44' }]}>
-      <ThemedText style={styles.childName}>{item.displayName}</ThemedText>
+      <View>
+        <ThemedText style={styles.childName}>{item.displayName}</ThemedText>
+        <ThemedText style={styles.pointsText}>{item.points} pts</ThemedText>
+      </View>
       <View style={[styles.badge, { backgroundColor: tintColor }]}>
         <ThemedText style={styles.badgeText}>{AGE_GROUP_LABELS[item.ageGroup] ?? item.ageGroup}</ThemedText>
       </View>
@@ -43,9 +46,23 @@ export default function ParentDashboard() {
 
       <TouchableOpacity
         style={[styles.button, { backgroundColor: tintColor }]}
+        onPress={() => router.push('/(parent)/task-create')}
+      >
+        <ThemedText style={styles.buttonText}>Create Task</ThemedText>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.outlineButton, { borderColor: textColor + '44' }]}
+        onPress={() => router.push('/(parent)/tasks')}
+      >
+        <ThemedText style={styles.outlineButtonText}>Review Tasks</ThemedText>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.outlineButton, { borderColor: textColor + '44' }]}
         onPress={() => router.push('/(parent)/child-add')}
       >
-        <ThemedText style={styles.buttonText}>Add Child</ThemedText>
+        <ThemedText style={styles.outlineButtonText}>Add Child</ThemedText>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -73,6 +90,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   childName: { fontSize: 16, fontWeight: '500' },
+  pointsText: { fontSize: 13, opacity: 0.7, marginTop: 2 },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -92,7 +110,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    marginBottom: 32,
+    marginBottom: 12,
   },
   outlineButtonText: { fontWeight: '600', fontSize: 16 },
 });

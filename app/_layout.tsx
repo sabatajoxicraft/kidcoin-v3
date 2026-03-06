@@ -8,6 +8,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/contexts/auth-context';
 import { useAuth } from '@/hooks/use-auth';
 import { FamilyProvider, useFamily } from '@/contexts/family-context';
+import { TaskProvider } from '@/contexts/task-context';
 
 export const unstable_settings = {
   anchor: '(parent)',
@@ -70,8 +71,10 @@ export default function RootLayout() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
         <FamilyProvider>
-          <RootLayoutNav />
-          <StatusBar style="auto" />
+          <TaskProvider>
+            <RootLayoutNav />
+            <StatusBar style="auto" />
+          </TaskProvider>
         </FamilyProvider>
       </AuthProvider>
     </ThemeProvider>

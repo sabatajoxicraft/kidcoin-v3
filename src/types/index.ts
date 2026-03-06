@@ -29,3 +29,33 @@ export interface ChildProfile extends UserProfile {
   points: number;
   familyId: string;
 }
+
+export type TaskStatus = 'assigned' | 'submitted' | 'approved' | 'returned';
+
+export interface Task {
+  id: string;
+  familyId: string;
+  title: string;
+  description?: string;
+  points: number;
+  assignedToChildId: string;
+  createdByParentId: string;
+  status: TaskStatus;
+  feedback?: string;
+  submittedAt?: Date;
+  reviewedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PointTransaction {
+  id: string;
+  familyId: string;
+  childId: string;
+  type: 'task_reward' | 'adjustment';
+  pointsDelta: number;
+  balanceAfter: number;
+  relatedTaskId?: string;
+  note?: string;
+  createdAt: Date;
+}
