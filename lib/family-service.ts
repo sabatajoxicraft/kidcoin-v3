@@ -1,4 +1,5 @@
 import { doc, getDoc, setDoc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import * as Crypto from 'expo-crypto';
 import { db } from '@/lib/firebase';
 import type { Family, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
 
@@ -42,12 +43,8 @@ export async function addChild(
   ageGroup: AgeGroup,
   pin: string,
 ): Promise<ChildProfile> {
-  const pinBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
-  const pinHash = Array.from(new Uint8Array(pinBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-
-  const childRef = doc(db, 'users', crypto.randomUUID());
+  const pinHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin);
+  const childRef = doc(collection(db, 'users'));
   const child: ChildProfile = {
     id: childRef.id,
     displayName,
