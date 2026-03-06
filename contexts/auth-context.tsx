@@ -44,7 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     validateFirebaseConfig();
     const missingGoogleKeys = [
-      !googleConfigExtra?.iosClientId && 'google.iosClientId',
       !googleConfigExtra?.androidClientId && 'google.androidClientId',
       !googleConfigExtra?.webClientId && 'google.webClientId',
     ].filter(Boolean) as string[];
