@@ -1,0 +1,98 @@
+{
+  "project_info": {
+    "project_number": "27298096985",
+    "project_id": "kidcoin-free-2026-v2",
+    "storage_bucket": "kidcoin-free-2026-v2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:27298096985:android:2d398174550167a70fce48",
+        "android_client_info": {
+          "package_name": "com.kidcoin.v3"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "27298096985-jnnrbmmc4nnc9da63je2900017gc4smv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kidcoin.v3",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "27298096985-3o4bqmfs1ccdn3kr7gtfr0lurfois2og.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRqvK3_CxRKBcnKLyQB_RNnIDW4wSChoM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "27298096985-3o4bqmfs1ccdn3kr7gtfr0lurfois2og.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "27298096985-bnh9o9lua75gtbg490pfrajq3b35qt13.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.sabata.kidcoin"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:27298096985:android:a90732fde9fb59920fce48",
+        "android_client_info": {
+          "package_name": "com.sabata.kidcoin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "27298096985-rg4nehcs0rftmjgjgi5uvt46ffbq4pcr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sabata.kidcoin",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "27298096985-3o4bqmfs1ccdn3kr7gtfr0lurfois2og.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRqvK3_CxRKBcnKLyQB_RNnIDW4wSChoM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "27298096985-3o4bqmfs1ccdn3kr7gtfr0lurfois2og.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "27298096985-bnh9o9lua75gtbg490pfrajq3b35qt13.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.sabata.kidcoin"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

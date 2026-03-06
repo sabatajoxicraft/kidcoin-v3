@@ -39,7 +39,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -52,7 +53,7 @@
         "projectId": "kidcoin-free-2026-v2",
         "storageBucket": "kidcoin-free-2026-v2.firebasestorage.app",
         "messagingSenderId": "27298096985",
-        "appId": "1:27298096985:android:a90732fde9fb59920fce48"
+        "appId": "1:27298096985:android:2d398174550167a70fce48"
       },
       "google": {
         "iosClientId": "",
