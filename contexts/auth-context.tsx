@@ -2,11 +2,16 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, validateFirebaseConfig } from '@/lib/firebase';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import Constants from 'expo-constants';
 
-WebBrowser.maybeCompleteAuthSession();
+const googleConfigExtra = Constants.expoConfig?.extra?.google as
+  | { webClientId?: string }
+  | undefined;
+
+GoogleSignin.configure({
+  webClientId: googleConfigExtra?.webClientId ?? '27298096985-3o4bqmfs1ccdn3kr7gtfr0lurfois2og.apps.googleusercontent.com',
+});
 
 interface AuthContextType {
   user: User | null;
@@ -20,18 +25,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [initializing, setInitializing] = useState(true);
-  const googleConfigExtra = Constants.expoConfig?.extra?.google as
-    | {
-        iosClientId?: string;
-        androidClientId?: string;
-        webClientId?: string;
-      }
-    | undefined;
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: googleConfigExtra?.iosClientId ?? 'MISSING_GOOGLE_IOS_CLIENT_ID',
-    androidClientId: googleConfigExtra?.androidClientId ?? 'MISSING_GOOGLE_ANDROID_CLIENT_ID',
-    webClientId: googleConfigExtra?.webClientId ?? 'MISSING_GOOGLE_WEB_CLIENT_ID',
-  });
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -43,53 +36,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     validateFirebaseConfig();
-    const missingGoogleKeys = [
-      !googleConfigExtra?.androidClientId && 'google.androidClientId',
-      !googleConfigExtra?.webClientId && 'google.webClientId',
-    ].filter(Boolean) as string[];
-    if (missingGoogleKeys.length > 0) {
-      throw new Error(`Missing required Expo config keys: ${missingGoogleKeys.join(', ')}`);
+
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    const response = await GoogleSignin.signIn();
+    const idToken = response.data?.idToken;
+
+    if (!idToken) {
+      throw new Error('No ID token received from Google');
     }
 
-    if (!request) {
-      throw new Error('Google Auth request is not ready');
-    }
-    const result = await promptAsync();
+    const credential = GoogleAuthProvider.credential(idToken);
+    const userCredential = await signInWithCredential(auth, credential);
 
-    if (result.type === 'cancel') {
-      throw new Error('Sign-in cancelled');
-    }
-
-    if (result.type === 'error') {
-      throw new Error(result.error?.message || 'Sign-in failed');
-    }
-
-    if (result.type === 'success') {
-      const idToken = result.params.id_token;
-      const accessToken = result.params.access_token;
-
-      if (!idToken) {
-        throw new Error('No ID token received from Google');
-      }
-
-      const credential = GoogleAuthProvider.credential(idToken, accessToken);
-      const userCredential = await signInWithCredential(auth, credential);
-
-      const { uid, email, displayName, photoURL } = userCredential.user;
-      await setDoc(
-        doc(db, 'users', uid),
-        {
-          uid,
-          email,
-          displayName,
-          photoURL,
-          role: 'parent',
-          lastLoginAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-    }
+    const { uid, email, displayName, photoURL } = userCredential.user;
+    await setDoc(
+      doc(db, 'users', uid),
+      {
+        uid,
+        email,
+        displayName,
+        photoURL,
+        role: 'parent',
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
   };
 
   const signOut = async () => {
