@@ -7,32 +7,57 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/contexts/auth-context';
 import { useAuth } from '@/hooks/use-auth';
+import { FamilyProvider, useFamily } from '@/contexts/family-context';
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: '(parent)',
 };
 
 function RootLayoutNav() {
   const { user, initializing } = useAuth();
+  const { userProfile, hasFamily, loading: familyLoading } = useFamily();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (initializing) return;
+    if (initializing || familyLoading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
-
-    if (!user && !inAuthGroup) {
-      router.replace('/(auth)/sign-in');
-    } else if (user && inAuthGroup) {
-      router.replace('/(tabs)');
+    if (!user) {
+      if (segments[0] !== '(auth)') {
+        router.replace('/(auth)/sign-in');
+      }
+      return;
     }
-  }, [user, initializing, segments, router]);
+
+    if (!hasFamily) {
+      if (segments[0] !== '(setup)') {
+        router.replace('/(setup)/family-create');
+      }
+      return;
+    }
+
+    if (userProfile?.role === 'child') {
+      if (segments[0] !== '(child)') {
+        router.replace('/(child)');
+      }
+      return;
+    }
+
+    // parent (default)
+    if (segments[0] !== '(parent)') {
+      router.replace('/(parent)');
+    }
+  }, [user, initializing, userProfile, hasFamily, familyLoading, segments, router]);
+
+  if (initializing || familyLoading) return null;
 
   return (
     <Stack>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(setup)" options={{ headerShown: false }} />
+      <Stack.Screen name="(parent)" options={{ headerShown: false }} />
+      <Stack.Screen name="(child)" options={{ headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
     </Stack>
   );
@@ -44,8 +69,10 @@ export default function RootLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <AuthProvider>
-        <RootLayoutNav />
-        <StatusBar style="auto" />
+        <FamilyProvider>
+          <RootLayoutNav />
+          <StatusBar style="auto" />
+        </FamilyProvider>
       </AuthProvider>
     </ThemeProvider>
   );

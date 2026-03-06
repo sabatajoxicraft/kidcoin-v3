@@ -42,6 +42,39 @@ To learn more about developing your project with Expo, look at the following res
 - [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
 - [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
 
+## APK Automation
+
+Automated workflows for managing APK builds in development.
+
+### APK Watcher
+
+Copies `app-release.apk` to Termux downloads directory when changed:
+
+```bash
+npm run apk:watch        # Continuous watch mode
+npm run apk:watch:once   # Single copy
+```
+
+**Environment variables:**
+- `TERMUX_DOWNLOAD_DIR` - Target directory (auto-detects if not set)
+- `APK_OUTPUT_FILENAME` - Output filename (default: `kidcoin-latest.apk`)
+- `APK_WATCH_INTERVAL` - Watch interval in seconds (default: `5`)
+
+### APK Sync
+
+Downloads latest APK from GitHub releases when updated:
+
+```bash
+npm run apk:sync        # Continuous sync mode
+npm run apk:sync:once   # Single check
+```
+
+**Environment variables:**
+- `GITHUB_RELEASE_TAG` - Release tag to track (default: `latest-dev-apk`)
+- `APK_POLL_INTERVAL` - Poll interval in seconds (default: `60`)
+
+State persisted in `.copilot/.apk-sync-state`. Automatically triggers watcher after download.
+
 ## Join the community
 
 Join our community of developers creating universal apps.
