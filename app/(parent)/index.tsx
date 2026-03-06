@@ -43,7 +43,7 @@ export default function ParentDashboard() {
 
       <TouchableOpacity
         style={[styles.button, { backgroundColor: tintColor }]}
-        onPress={() => router.push('/(setup)/child-add')}
+        onPress={() => router.push('/(parent)/child-add')}
       >
         <ThemedText style={styles.buttonText}>Add Child</ThemedText>
       </TouchableOpacity>
