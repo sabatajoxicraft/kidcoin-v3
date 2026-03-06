@@ -47,17 +47,17 @@
     },
     "extra": {
       "firebase": {
-        "apiKey": "",
-        "authDomain": "",
-        "projectId": "",
-        "storageBucket": "",
-        "messagingSenderId": "",
-        "appId": ""
+        "apiKey": "AIzaSyDRqvK3_CxRKBcnKLyQB_RNnIDW4wSChoM",
+        "authDomain": "kidcoin-free-2026-v2.firebaseapp.com",
+        "projectId": "kidcoin-free-2026-v2",
+        "storageBucket": "kidcoin-free-2026-v2.firebasestorage.app",
+        "messagingSenderId": "27298096985",
+        "appId": "1:27298096985:android:a90732fde9fb59920fce48"
       },
       "google": {
         "iosClientId": "",
-        "androidClientId": "",
-        "webClientId": ""
+        "androidClientId": "27298096985-rg4nehcs0rftmjgjgi5uvt46ffbq4pcr.apps.googleusercontent.com",
+        "webClientId": "27298096985-3o4bqmfs1ccdn3kr7gtfr0lurfois2og.apps.googleusercontent.com"
       }
     },
     "splash": {
