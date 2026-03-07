@@ -28,6 +28,7 @@ export interface ChildProfile extends UserProfile {
   pinHash: string;
   points: number;
   familyId: string;
+  pendingPayoutPoints?: number;
 }
 
 export type TaskStatus = 'assigned' | 'submitted' | 'approved' | 'returned';
@@ -52,10 +53,26 @@ export interface PointTransaction {
   id: string;
   familyId: string;
   childId: string;
-  type: 'task_reward' | 'adjustment';
+  type: 'task_reward' | 'adjustment' | 'payout_deduction';
   pointsDelta: number;
   balanceAfter: number;
   relatedTaskId?: string;
+  relatedPayoutRequestId?: string;
   note?: string;
+  createdAt: Date;
+}
+
+export type PayoutRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface PayoutRequest {
+  id: string;
+  familyId: string;
+  childId: string;
+  requestedPoints: number;
+  status: PayoutRequestStatus;
+  requestNote?: string;
+  reviewNote?: string;
+  reviewedByParentId?: string;
+  reviewedAt?: Date;
   createdAt: Date;
 }

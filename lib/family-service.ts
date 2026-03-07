@@ -80,6 +80,7 @@ export async function getFamilyWithChildren(
     return {
       ...(cd as Omit<ChildProfile, 'createdAt'>),
       createdAt: cd.createdAt instanceof Timestamp ? cd.createdAt.toDate() : (cd.createdAt as Date),
+      pendingPayoutPoints: typeof cd.pendingPayoutPoints === 'number' ? cd.pendingPayoutPoints : 0,
     };
   });
 

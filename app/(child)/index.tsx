@@ -1,4 +1,5 @@
-import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -7,23 +8,54 @@ import { useAuth } from '@/hooks/use-auth';
 import { useTask } from '@/hooks/use-task';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
+function isPositiveIntegerString(value: string): boolean {
+  return /^[1-9]\d*$/.test(value);
+}
+
 export default function ChildDashboard() {
   const { signOut } = useAuth();
-  const { userProfile, children, activeChild, exitChildMode } = useFamily();
-  const { tasks, transactions, submitTask, refresh, loading, error } = useTask();
+  const { userProfile, family, children, activeChild, exitChildMode } = useFamily();
+  const { tasks, transactions, payoutRequests, submitTask, requestPayout, refresh, loading, error } = useTask();
   const router = useRouter();
   const tintColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
 
+  const [payoutPoints, setPayoutPoints] = useState('');
+  const [payoutNote, setPayoutNote] = useState('');
+
   const displayChild = activeChild ?? children.find((child) => child.id === userProfile?.id);
   const currentPoints = displayChild?.points ?? 0;
+  const pendingPayoutPoints = displayChild?.pendingPayoutPoints ?? 0;
+  const availablePayoutPoints = Math.max(0, currentPoints - pendingPayoutPoints);
+  const minPayoutAmount = family?.settings?.minPayoutAmount ?? 0;
   const assignedTasks = tasks.filter((task) => task.status === 'assigned');
   const returnedTasks = tasks.filter((task) => task.status === 'returned');
   const recentTransactions = transactions.slice(0, 5);
 
+  const parsedPayoutPoints = isPositiveIntegerString(payoutPoints) ? Number(payoutPoints) : NaN;
+  const isPayoutFormInvalid =
+    !Number.isFinite(parsedPayoutPoints) ||
+    parsedPayoutPoints <= 0 ||
+    parsedPayoutPoints < minPayoutAmount ||
+    parsedPayoutPoints > availablePayoutPoints;
+
   const handleSubmit = async (taskId: string) => {
     try {
       await submitTask(taskId);
+    } catch {
+      // error state is already managed in context
+    }
+  };
+
+  const handleRequestPayout = async () => {
+    if (!isPositiveIntegerString(payoutPoints)) return;
+    const parsed = Number(payoutPoints);
+    if (parsed <= 0 || parsed < minPayoutAmount) return;
+    if (parsed > availablePayoutPoints) return;
+    try {
+      await requestPayout(parsed, payoutNote || undefined);
+      setPayoutPoints('');
+      setPayoutNote('');
     } catch {
       // error state is already managed in context
     }
@@ -97,11 +129,55 @@ export default function ChildDashboard() {
           recentTransactions.map((transaction) => (
             <View key={transaction.id} style={[styles.transactionRow, { borderColor: textColor + '22' }]}>
               <ThemedText style={styles.transactionTitle}>{transaction.note ?? transaction.type}</ThemedText>
-              <ThemedText style={styles.transactionPoints}>+{transaction.pointsDelta}</ThemedText>
+              <ThemedText style={styles.transactionPoints}>
+                {transaction.pointsDelta > 0 ? '+' : ''}{transaction.pointsDelta}
+              </ThemedText>
             </View>
           ))
         ) : (
           <ThemedText style={styles.empty}>No transactions yet.</ThemedText>
+        )}
+
+        <ThemedText type="subtitle" style={styles.sectionTitle}>Request Payout</ThemedText>
+        <TextInput
+          style={[styles.input, { color: textColor, borderColor: textColor + '44' }]}
+          placeholder="Points to redeem"
+          placeholderTextColor={textColor + '66'}
+          keyboardType="numeric"
+          value={payoutPoints}
+          onChangeText={setPayoutPoints}
+        />
+        <TextInput
+          style={[styles.input, { color: textColor, borderColor: textColor + '44' }]}
+          placeholder="Note (optional)"
+          placeholderTextColor={textColor + '66'}
+          value={payoutNote}
+          onChangeText={setPayoutNote}
+        />
+        <ThemedText style={styles.payoutMeta}>
+          Available: {availablePayoutPoints} pts{pendingPayoutPoints > 0 ? ` · ${pendingPayoutPoints} pts pending` : ''}
+          {minPayoutAmount > 0 ? ` · Min: ${minPayoutAmount} pts` : ''}
+        </ThemedText>
+        <TouchableOpacity
+          style={[styles.submitButton, { backgroundColor: tintColor }, (isPayoutFormInvalid || loading) ? { opacity: 0.4 } : undefined]}
+          onPress={handleRequestPayout}
+          disabled={isPayoutFormInvalid || loading}
+        >
+          <ThemedText style={styles.submitButtonText}>Submit Payout Request</ThemedText>
+        </TouchableOpacity>
+
+        <ThemedText type="subtitle" style={styles.sectionTitle}>Payout Requests</ThemedText>
+        {payoutRequests.length > 0 ? (
+          payoutRequests.map((req) => (
+            <View key={req.id} style={[styles.taskCard, { borderColor: textColor + '22' }]}>
+              <ThemedText style={styles.taskTitle}>{req.requestedPoints} pts</ThemedText>
+              <ThemedText style={styles.meta}>Status: {req.status}</ThemedText>
+              {req.requestNote ? <ThemedText style={styles.feedback}>Note: {req.requestNote}</ThemedText> : null}
+              {req.reviewNote ? <ThemedText style={styles.feedback}>Review: {req.reviewNote}</ThemedText> : null}
+            </View>
+          ))
+        ) : (
+          <ThemedText style={styles.empty}>No payout requests yet.</ThemedText>
         )}
 
         {activeChild ? (
@@ -176,7 +252,16 @@ const styles = StyleSheet.create({
   },
   transactionTitle: { fontSize: 14, flex: 1 },
   transactionPoints: { fontSize: 15, fontWeight: '600' },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 8,
+    fontSize: 15,
+  },
   empty: { opacity: 0.6, marginBottom: 8 },
+  payoutMeta: { fontSize: 13, opacity: 0.65, marginBottom: 8 },
   switchButton: {
     borderWidth: 1,
     borderRadius: 8,

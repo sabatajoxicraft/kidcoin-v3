@@ -9,7 +9,13 @@ import {
   reviewTask as reviewTaskService,
   submitTask as submitTaskService,
 } from '@/lib/task-service';
-import type { PointTransaction, Task } from '@/src/types';
+import {
+  createPayoutRequest as createPayoutRequestService,
+  getChildPayoutRequests,
+  getFamilyPayoutRequests,
+  reviewPayoutRequest as reviewPayoutRequestService,
+} from '@/lib/payout-service';
+import type { PayoutRequest, PointTransaction, Task } from '@/src/types';
 
 export interface CreateTaskInput {
   title: string;
@@ -21,11 +27,14 @@ export interface CreateTaskInput {
 interface TaskContextType {
   tasks: Task[];
   transactions: PointTransaction[];
+  payoutRequests: PayoutRequest[];
   loading: boolean;
   error: string | null;
   createTask: (input: CreateTaskInput) => Promise<void>;
   submitTask: (taskId: string) => Promise<void>;
   reviewTask: (taskId: string, decision: 'approved' | 'returned', feedback?: string) => Promise<void>;
+  requestPayout: (requestedPoints: number, requestNote?: string) => Promise<void>;
+  reviewPayoutRequest: (requestId: string, decision: 'approved' | 'rejected', reviewNote?: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -36,29 +45,39 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
   const { userProfile, effectiveRole, effectiveUserProfile, refreshFamily } = useFamily();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [transactions, setTransactions] = useState<PointTransaction[]>([]);
+  const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadScopedData = useCallback(async (): Promise<{ tasks: Task[]; transactions: PointTransaction[] }> => {
+  const loadScopedData = useCallback(async (): Promise<{
+    tasks: Task[];
+    transactions: PointTransaction[];
+    payoutRequests: PayoutRequest[];
+  }> => {
     const scopedProfile = effectiveUserProfile;
-    if (!scopedProfile?.familyId) return { tasks: [], transactions: [] };
+    if (!scopedProfile?.familyId) return { tasks: [], transactions: [], payoutRequests: [] };
 
     if (effectiveRole === 'parent') {
-      const familyTasks = await getFamilyTasks(scopedProfile.familyId);
-      return { tasks: familyTasks, transactions: [] };
+      const [familyTasks, familyPayoutRequests] = await Promise.all([
+        getFamilyTasks(scopedProfile.familyId),
+        getFamilyPayoutRequests(scopedProfile.familyId),
+      ]);
+      return { tasks: familyTasks, transactions: [], payoutRequests: familyPayoutRequests };
     }
 
     const childId = scopedProfile.id;
     if (!childId) throw new Error('Child profile not found');
 
-    const [childTasks, childTransactions] = await Promise.all([
+    const [childTasks, childTransactions, childPayoutRequests] = await Promise.all([
       getChildTasks(scopedProfile.familyId, childId),
       getChildTransactions(scopedProfile.familyId, childId, 10),
+      getChildPayoutRequests(scopedProfile.familyId, childId),
     ]);
 
     return {
       tasks: childTasks,
       transactions: childTransactions,
+      payoutRequests: childPayoutRequests,
     };
   }, [effectiveRole, effectiveUserProfile]);
 
@@ -81,6 +100,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     if (!user || !effectiveUserProfile?.familyId) {
       setTasks([]);
       setTransactions([]);
+      setPayoutRequests([]);
       setError(null);
       return;
     }
@@ -89,6 +109,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
       const scoped = await loadScopedData();
       setTasks(scoped.tasks);
       setTransactions(scoped.transactions);
+      setPayoutRequests(scoped.payoutRequests);
     });
   }, [effectiveUserProfile?.familyId, loadScopedData, runWithState, user]);
 
@@ -115,6 +136,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
       const scoped = await loadScopedData();
       setTasks(scoped.tasks);
       setTransactions(scoped.transactions);
+      setPayoutRequests(scoped.payoutRequests);
     });
   };
 
@@ -131,6 +153,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
       const scoped = await loadScopedData();
       setTasks(scoped.tasks);
       setTransactions(scoped.transactions);
+      setPayoutRequests(scoped.payoutRequests);
     });
   };
 
@@ -145,6 +168,45 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
       const scoped = await loadScopedData();
       setTasks(scoped.tasks);
       setTransactions(scoped.transactions);
+      setPayoutRequests(scoped.payoutRequests);
+      await refreshFamily();
+    });
+  };
+
+  const requestPayout = async (requestedPoints: number, requestNote?: string) => {
+    const scopedProfile = effectiveUserProfile;
+    if (!scopedProfile?.familyId) throw new Error('Family context is not ready');
+    if (!user) throw new Error('Authenticated user not found');
+    if (effectiveRole !== 'child') throw new Error('Only children can request payouts');
+
+    const familyId = scopedProfile.familyId;
+    await runWithState(async () => {
+      const childId = scopedProfile.id;
+      if (!childId) throw new Error('Child profile not found');
+      await createPayoutRequestService(familyId, childId, requestedPoints, requestNote);
+      const scoped = await loadScopedData();
+      setTasks(scoped.tasks);
+      setTransactions(scoped.transactions);
+      setPayoutRequests(scoped.payoutRequests);
+    });
+  };
+
+  const reviewPayoutRequest = async (
+    requestId: string,
+    decision: 'approved' | 'rejected',
+    reviewNote?: string,
+  ) => {
+    if (!user || !userProfile?.familyId) throw new Error('Family context is not ready');
+    if (userProfile.role !== 'parent' || effectiveRole !== 'parent') {
+      throw new Error('Only parents can review payout requests');
+    }
+
+    await runWithState(async () => {
+      await reviewPayoutRequestService(requestId, user.uid, decision, reviewNote);
+      const scoped = await loadScopedData();
+      setTasks(scoped.tasks);
+      setTransactions(scoped.transactions);
+      setPayoutRequests(scoped.payoutRequests);
       await refreshFamily();
     });
   };
@@ -154,11 +216,14 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
       value={{
         tasks,
         transactions,
+        payoutRequests,
         loading,
         error,
         createTask,
         submitTask,
         reviewTask,
+        requestPayout,
+        reviewPayoutRequest,
         refresh,
       }}
     >
