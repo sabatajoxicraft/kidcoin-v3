@@ -14,7 +14,9 @@ export default function ParentTasksScreen() {
   const tintColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
   const submittedTasks = tasks.filter((task) => task.status === 'submitted');
-  const otherTasks = tasks.filter((task) => task.status !== 'submitted');
+  const returnedTasks = tasks.filter((task) => task.status === 'returned');
+  const assignedTasks = tasks.filter((task) => task.status === 'assigned');
+  const approvedTasks = tasks.filter((task) => task.status === 'approved');
 
   const childNames = children.reduce<Record<string, string>>((acc, child) => {
     acc[child.id] = child.displayName;
@@ -89,18 +91,32 @@ export default function ParentTasksScreen() {
       {loading ? <ActivityIndicator style={styles.loading} color={tintColor} /> : null}
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <ThemedText type="subtitle" style={styles.sectionTitle}>Submitted</ThemedText>
+        <ThemedText type="subtitle" style={styles.sectionTitle}>Submitted (Awaiting Review)</ThemedText>
         {submittedTasks.length > 0 ? (
           submittedTasks.map((task) => renderTask(task, true))
         ) : (
-          <ThemedText style={styles.empty}>No submitted tasks.</ThemedText>
+          <ThemedText style={styles.empty}>No submitted tasks awaiting review.</ThemedText>
         )}
 
-        <ThemedText type="subtitle" style={styles.sectionTitle}>Other Tasks</ThemedText>
-        {otherTasks.length > 0 ? (
-          otherTasks.map((task) => renderTask(task, false))
+        <ThemedText type="subtitle" style={styles.sectionTitle}>Returned (Awaiting Child Resubmission)</ThemedText>
+        {returnedTasks.length > 0 ? (
+          returnedTasks.map((task) => renderTask(task, false))
         ) : (
-          <ThemedText style={styles.empty}>No other tasks yet.</ThemedText>
+          <ThemedText style={styles.empty}>No returned tasks awaiting resubmission.</ThemedText>
+        )}
+
+        <ThemedText type="subtitle" style={styles.sectionTitle}>Assigned</ThemedText>
+        {assignedTasks.length > 0 ? (
+          assignedTasks.map((task) => renderTask(task, false))
+        ) : (
+          <ThemedText style={styles.empty}>No assigned tasks yet.</ThemedText>
+        )}
+
+        <ThemedText type="subtitle" style={styles.sectionTitle}>Approved</ThemedText>
+        {approvedTasks.length > 0 ? (
+          approvedTasks.map((task) => renderTask(task, false))
+        ) : (
+          <ThemedText style={styles.empty}>No approved tasks yet.</ThemedText>
         )}
       </ScrollView>
     </ThemedView>

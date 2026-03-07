@@ -18,6 +18,7 @@ export default function ChildDashboard() {
   const displayChild = activeChild ?? children.find((child) => child.id === userProfile?.id);
   const currentPoints = displayChild?.points ?? 0;
   const assignedTasks = tasks.filter((task) => task.status === 'assigned');
+  const returnedTasks = tasks.filter((task) => task.status === 'returned');
   const recentTransactions = transactions.slice(0, 5);
 
   const handleSubmit = async (taskId: string) => {
@@ -68,6 +69,27 @@ export default function ChildDashboard() {
           ))
         ) : (
           <ThemedText style={styles.empty}>No assigned tasks right now.</ThemedText>
+        )}
+
+        <ThemedText type="subtitle" style={styles.sectionTitle}>Returned Tasks</ThemedText>
+        {returnedTasks.length > 0 ? (
+          returnedTasks.map((task) => (
+            <View key={task.id} style={[styles.taskCard, { borderColor: tintColor + '44' }]}>
+              <ThemedText style={styles.taskTitle}>{task.title}</ThemedText>
+              {task.description ? <ThemedText style={styles.taskDescription}>{task.description}</ThemedText> : null}
+              <ThemedText style={styles.meta}>{task.points} pts</ThemedText>
+              {task.feedback ? <ThemedText style={styles.feedback}>Feedback: {task.feedback}</ThemedText> : null}
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: tintColor }]}
+                onPress={() => handleSubmit(task.id)}
+                disabled={loading}
+              >
+                <ThemedText style={styles.submitButtonText}>Resubmit</ThemedText>
+              </TouchableOpacity>
+            </View>
+          ))
+        ) : (
+          <ThemedText style={styles.empty}>No returned tasks right now.</ThemedText>
         )}
 
         <ThemedText type="subtitle" style={styles.sectionTitle}>Recent Transactions</ThemedText>
@@ -134,6 +156,7 @@ const styles = StyleSheet.create({
   taskTitle: { fontSize: 16, fontWeight: '600' },
   taskDescription: { marginTop: 4, opacity: 0.8 },
   meta: { marginTop: 6, fontSize: 13, opacity: 0.7 },
+  feedback: { marginTop: 6, fontSize: 13 },
   submitButton: {
     marginTop: 10,
     borderRadius: 8,
