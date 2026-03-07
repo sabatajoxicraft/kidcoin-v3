@@ -16,7 +16,7 @@ export const unstable_settings = {
 
 function RootLayoutNav() {
   const { user, initializing } = useAuth();
-  const { userProfile, hasFamily, loading: familyLoading } = useFamily();
+  const { effectiveRole, effectiveUserProfile, hasFamily, loading: familyLoading } = useFamily();
   const segments = useSegments();
   const router = useRouter();
 
@@ -37,7 +37,7 @@ function RootLayoutNav() {
       return;
     }
 
-    if (userProfile?.role === 'child') {
+    if (effectiveRole === 'child' && effectiveUserProfile) {
       if (segments[0] !== '(child)') {
         router.replace('/(child)');
       }
@@ -48,7 +48,7 @@ function RootLayoutNav() {
     if (segments[0] !== '(parent)') {
       router.replace('/(parent)');
     }
-  }, [user, initializing, userProfile, hasFamily, familyLoading, segments, router]);
+  }, [user, initializing, effectiveRole, effectiveUserProfile, hasFamily, familyLoading, segments, router]);
 
   if (initializing || familyLoading) return null;
 

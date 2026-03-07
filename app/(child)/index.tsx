@@ -1,4 +1,5 @@
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
@@ -8,13 +9,14 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 
 export default function ChildDashboard() {
   const { signOut } = useAuth();
-  const { userProfile, children } = useFamily();
+  const { userProfile, children, activeChild, exitChildMode } = useFamily();
   const { tasks, transactions, submitTask, refresh, loading, error } = useTask();
+  const router = useRouter();
   const tintColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
 
-  const currentChild = children.find((child) => child.id === userProfile?.id);
-  const currentPoints = currentChild?.points ?? 0;
+  const displayChild = activeChild ?? children.find((child) => child.id === userProfile?.id);
+  const currentPoints = displayChild?.points ?? 0;
   const assignedTasks = tasks.filter((task) => task.status === 'assigned');
   const recentTransactions = transactions.slice(0, 5);
 
@@ -32,7 +34,9 @@ export default function ChildDashboard() {
         <ThemedText type="title" style={styles.title}>My Tasks</ThemedText>
 
         <View style={[styles.pointsCard, { borderColor: tintColor + '44' }]}>
-          <ThemedText style={styles.pointsLabel}>Current Points</ThemedText>
+          <ThemedText style={styles.pointsLabel}>
+            {displayChild ? `${displayChild.displayName}'s Points` : 'Current Points'}
+          </ThemedText>
           <ThemedText style={styles.pointsValue}>{currentPoints}</ThemedText>
         </View>
 
@@ -77,6 +81,18 @@ export default function ChildDashboard() {
         ) : (
           <ThemedText style={styles.empty}>No transactions yet.</ThemedText>
         )}
+
+        {activeChild ? (
+          <TouchableOpacity
+            style={[styles.switchButton, { borderColor: textColor + '44' }]}
+            onPress={() => {
+              exitChildMode();
+              router.replace('/(parent)');
+            }}
+          >
+            <ThemedText style={styles.switchButtonText}>Switch to Parent</ThemedText>
+          </TouchableOpacity>
+        ) : null}
 
         <TouchableOpacity style={[styles.signOutButton, { borderColor: textColor + '44' }]} onPress={signOut}>
           <ThemedText style={styles.signOutText}>Sign Out</ThemedText>
@@ -138,6 +154,14 @@ const styles = StyleSheet.create({
   transactionTitle: { fontSize: 14, flex: 1 },
   transactionPoints: { fontSize: 15, fontWeight: '600' },
   empty: { opacity: 0.6, marginBottom: 8 },
+  switchButton: {
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  switchButtonText: { fontWeight: '600', fontSize: 16 },
   signOutButton: {
     borderWidth: 1,
     borderRadius: 8,

@@ -33,33 +33,34 @@ const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
 export function TaskProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const { userProfile, refreshFamily } = useFamily();
+  const { userProfile, effectiveRole, effectiveUserProfile, refreshFamily } = useFamily();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [transactions, setTransactions] = useState<PointTransaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadScopedData = useCallback(async (): Promise<{ tasks: Task[]; transactions: PointTransaction[] }> => {
-    if (!userProfile?.familyId) return { tasks: [], transactions: [] };
+    const scopedProfile = effectiveUserProfile;
+    if (!scopedProfile?.familyId) return { tasks: [], transactions: [] };
 
-    if (userProfile.role === 'parent') {
-      const familyTasks = await getFamilyTasks(userProfile.familyId);
+    if (effectiveRole === 'parent') {
+      const familyTasks = await getFamilyTasks(scopedProfile.familyId);
       return { tasks: familyTasks, transactions: [] };
     }
 
-    const childId = userProfile.id || user?.uid;
+    const childId = scopedProfile.id;
     if (!childId) throw new Error('Child profile not found');
 
     const [childTasks, childTransactions] = await Promise.all([
-      getChildTasks(userProfile.familyId, childId),
-      getChildTransactions(userProfile.familyId, childId, 10),
+      getChildTasks(scopedProfile.familyId, childId),
+      getChildTransactions(scopedProfile.familyId, childId, 10),
     ]);
 
     return {
       tasks: childTasks,
       transactions: childTransactions,
     };
-  }, [user?.uid, userProfile]);
+  }, [effectiveRole, effectiveUserProfile]);
 
   const runWithState = useCallback(async (work: () => Promise<void>) => {
     setLoading(true);
@@ -77,7 +78,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
-    if (!user || !userProfile?.familyId) {
+    if (!user || !effectiveUserProfile?.familyId) {
       setTasks([]);
       setTransactions([]);
       setError(null);
@@ -89,7 +90,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
       setTasks(scoped.tasks);
       setTransactions(scoped.transactions);
     });
-  }, [loadScopedData, runWithState, user, userProfile?.familyId]);
+  }, [effectiveUserProfile?.familyId, loadScopedData, runWithState, user]);
 
   useEffect(() => {
     refresh().catch(() => undefined);
@@ -97,7 +98,9 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
 
   const createTask = async (input: CreateTaskInput) => {
     if (!user || !userProfile?.familyId) throw new Error('Family context is not ready');
-    if (userProfile.role !== 'parent') throw new Error('Only parents can create tasks');
+    if (userProfile.role !== 'parent' || effectiveRole !== 'parent') {
+      throw new Error('Only parents can create tasks');
+    }
     const familyId = userProfile.familyId;
 
     await runWithState(async () => {
@@ -116,12 +119,13 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
   };
 
   const submitTask = async (taskId: string) => {
-    if (!userProfile?.familyId) throw new Error('Family context is not ready');
+    const scopedProfile = effectiveUserProfile;
+    if (!scopedProfile?.familyId) throw new Error('Family context is not ready');
     if (!user) throw new Error('Authenticated user not found');
-    if (userProfile.role !== 'child') throw new Error('Only children can submit tasks');
+    if (effectiveRole !== 'child') throw new Error('Only children can submit tasks');
 
     await runWithState(async () => {
-      const childId = userProfile.id || user.uid;
+      const childId = scopedProfile.id;
       if (!childId) throw new Error('Child profile not found');
       await submitTaskService(taskId, childId);
       const scoped = await loadScopedData();
@@ -132,7 +136,9 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
 
   const reviewTask = async (taskId: string, decision: 'approved' | 'returned', feedback?: string) => {
     if (!user || !userProfile?.familyId) throw new Error('Family context is not ready');
-    if (userProfile.role !== 'parent') throw new Error('Only parents can review tasks');
+    if (userProfile.role !== 'parent' || effectiveRole !== 'parent') {
+      throw new Error('Only parents can review tasks');
+    }
 
     await runWithState(async () => {
       await reviewTaskService(taskId, user.uid, decision, feedback);
