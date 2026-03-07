@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
 import { useAuth } from '@/hooks/use-auth';
 import { useTask } from '@/hooks/use-task';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import type { EvidenceDraft } from '@/src/types';
 
 function isPositiveIntegerString(value: string): boolean {
   return /^[1-9]\d*$/.test(value);
@@ -22,6 +25,8 @@ export default function ChildDashboard() {
 
   const [payoutPoints, setPayoutPoints] = useState('');
   const [payoutNote, setPayoutNote] = useState('');
+  const [evidenceDrafts, setEvidenceDrafts] = useState<Record<string, EvidenceDraft>>({});
+  const [pickerErrors, setPickerErrors] = useState<Record<string, string>>({});
 
   const displayChild = activeChild ?? children.find((child) => child.id === userProfile?.id);
   const currentPoints = displayChild?.points ?? 0;
@@ -39,9 +44,61 @@ export default function ChildDashboard() {
     parsedPayoutPoints < minPayoutAmount ||
     parsedPayoutPoints > availablePayoutPoints;
 
+  const clearPickerError = (taskId: string) => {
+    setPickerErrors((prev) => {
+      const next = { ...prev };
+      delete next[taskId];
+      return next;
+    });
+  };
+
+  const pickImage = async (taskId: string, source: 'camera' | 'gallery') => {
+    try {
+      const permResult = source === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permResult.granted) {
+        setPickerErrors((prev) => ({
+          ...prev,
+          [taskId]: `Please allow ${source} access to attach evidence.`,
+        }));
+        return;
+      }
+
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: true })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: true });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const fileName = asset.fileName ?? uri.split('/').pop() ?? 'evidence.jpg';
+      const mimeType = asset.mimeType ?? 'image/jpeg';
+      const fileSize = asset.fileSize ?? 0;
+
+      setEvidenceDrafts((prev) => ({ ...prev, [taskId]: { localUri: uri, fileName, mimeType, fileSize } }));
+      clearPickerError(taskId);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to pick image.';
+      setPickerErrors((prev) => ({ ...prev, [taskId]: message }));
+    }
+  };
+
+  const clearDraft = (taskId: string) => {
+    setEvidenceDrafts((prev) => {
+      const next = { ...prev };
+      delete next[taskId];
+      return next;
+    });
+  };
+
   const handleSubmit = async (taskId: string) => {
     try {
-      await submitTask(taskId);
+      await submitTask(taskId, evidenceDrafts[taskId]);
+      clearDraft(taskId);
+      clearPickerError(taskId);
     } catch {
       // error state is already managed in context
     }
@@ -90,6 +147,36 @@ export default function ChildDashboard() {
               <ThemedText style={styles.taskTitle}>{task.title}</ThemedText>
               {task.description ? <ThemedText style={styles.taskDescription}>{task.description}</ThemedText> : null}
               <ThemedText style={styles.meta}>{task.points} pts</ThemedText>
+
+              <View style={styles.evidenceRow}>
+                <TouchableOpacity
+                  style={[styles.evidenceButton, { borderColor: tintColor }]}
+                  onPress={() => pickImage(task.id, 'camera')}
+                  disabled={loading}
+                >
+                  <ThemedText style={styles.evidenceButtonText}>📷 Camera</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.evidenceButton, { borderColor: tintColor }]}
+                  onPress={() => pickImage(task.id, 'gallery')}
+                  disabled={loading}
+                >
+                  <ThemedText style={styles.evidenceButtonText}>🖼 Gallery</ThemedText>
+                </TouchableOpacity>
+              </View>
+
+              {evidenceDrafts[task.id] ? (
+                <View style={styles.evidencePreview}>
+                  <Image source={{ uri: evidenceDrafts[task.id].localUri }} style={styles.evidenceImage} contentFit="cover" />
+                  <TouchableOpacity style={styles.removeButton} onPress={() => clearDraft(task.id)}>
+                    <ThemedText style={styles.removeButtonText}>✕</ThemedText>
+                  </TouchableOpacity>
+                  <ThemedText style={styles.evidenceLabel}>Evidence attached</ThemedText>
+                </View>
+              ) : null}
+
+              {pickerErrors[task.id] ? <ThemedText style={styles.pickerError}>{pickerErrors[task.id]}</ThemedText> : null}
+
               <TouchableOpacity
                 style={[styles.submitButton, { backgroundColor: tintColor }]}
                 onPress={() => handleSubmit(task.id)}
@@ -111,6 +198,43 @@ export default function ChildDashboard() {
               {task.description ? <ThemedText style={styles.taskDescription}>{task.description}</ThemedText> : null}
               <ThemedText style={styles.meta}>{task.points} pts</ThemedText>
               {task.feedback ? <ThemedText style={styles.feedback}>Feedback: {task.feedback}</ThemedText> : null}
+
+              {task.evidence ? (
+                <View style={styles.evidencePreview}>
+                  <Image source={{ uri: task.evidence.downloadUrl }} style={styles.evidenceImage} contentFit="cover" />
+                  <ThemedText style={styles.evidenceLabel}>Previous evidence</ThemedText>
+                </View>
+              ) : null}
+
+              <View style={styles.evidenceRow}>
+                <TouchableOpacity
+                  style={[styles.evidenceButton, { borderColor: tintColor }]}
+                  onPress={() => pickImage(task.id, 'camera')}
+                  disabled={loading}
+                >
+                  <ThemedText style={styles.evidenceButtonText}>📷 Camera</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.evidenceButton, { borderColor: tintColor }]}
+                  onPress={() => pickImage(task.id, 'gallery')}
+                  disabled={loading}
+                >
+                  <ThemedText style={styles.evidenceButtonText}>🖼 Gallery</ThemedText>
+                </TouchableOpacity>
+              </View>
+
+              {evidenceDrafts[task.id] ? (
+                <View style={styles.evidencePreview}>
+                  <Image source={{ uri: evidenceDrafts[task.id].localUri }} style={styles.evidenceImage} contentFit="cover" />
+                  <TouchableOpacity style={styles.removeButton} onPress={() => clearDraft(task.id)}>
+                    <ThemedText style={styles.removeButtonText}>✕</ThemedText>
+                  </TouchableOpacity>
+                  <ThemedText style={styles.evidenceLabel}>New evidence attached</ThemedText>
+                </View>
+              ) : null}
+
+              {pickerErrors[task.id] ? <ThemedText style={styles.pickerError}>{pickerErrors[task.id]}</ThemedText> : null}
+
               <TouchableOpacity
                 style={[styles.submitButton, { backgroundColor: tintColor }]}
                 onPress={() => handleSubmit(task.id)}
@@ -278,4 +402,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   signOutText: { fontWeight: '600', fontSize: 16 },
+  evidenceRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  evidenceButton: { flex: 1, borderWidth: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 },
+  evidenceButtonText: { fontSize: 13, fontWeight: '600' },
+  evidencePreview: { marginTop: 8, borderRadius: 8, overflow: 'hidden', position: 'relative' },
+  evidenceImage: { width: '100%', height: 200, borderRadius: 8 },
+  removeButton: { position: 'absolute', top: 6, right: 6, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  removeButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  evidenceLabel: { fontSize: 12, opacity: 0.65, marginTop: 4 },
+  pickerError: { color: '#e53e3e', fontSize: 13, marginTop: 6 },
 });

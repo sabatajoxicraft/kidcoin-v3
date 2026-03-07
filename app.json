@@ -40,7 +40,15 @@
           }
         }
       ],
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "KidCoin needs access to your photos so you can attach task evidence.",
+          "cameraPermission": "KidCoin needs access to your camera so you can take task evidence photos.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

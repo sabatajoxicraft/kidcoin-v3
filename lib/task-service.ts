@@ -12,7 +12,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { PointTransaction, Task } from '@/src/types';
+import type { PointTransaction, Task, TaskEvidence } from '@/src/types';
 
 type UserRole = 'parent' | 'child';
 
@@ -31,13 +31,22 @@ function toOptionalDate(value: unknown): Date | undefined {
   return value instanceof Timestamp ? value.toDate() : (value as Date);
 }
 
+function mapEvidence(raw: Record<string, unknown> | undefined): TaskEvidence | undefined {
+  if (!raw || !raw.downloadUrl) return undefined;
+  return {
+    ...(raw as Omit<TaskEvidence, 'uploadedAt'>),
+    uploadedAt: toDate(raw.uploadedAt),
+  };
+}
+
 function mapTask(data: Record<string, unknown>): Task {
   return {
-    ...(data as Omit<Task, 'createdAt' | 'updatedAt' | 'submittedAt' | 'reviewedAt'>),
+    ...(data as Omit<Task, 'createdAt' | 'updatedAt' | 'submittedAt' | 'reviewedAt' | 'evidence'>),
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
     submittedAt: toOptionalDate(data.submittedAt),
     reviewedAt: toOptionalDate(data.reviewedAt),
+    ...(data.evidence ? { evidence: mapEvidence(data.evidence as Record<string, unknown>) } : {}),
   };
 }
 
@@ -160,7 +169,7 @@ export async function getChildTasks(familyId: string, childId: string): Promise<
   return tasks;
 }
 
-export async function submitTask(taskId: string, childId: string): Promise<void> {
+export async function submitTask(taskId: string, childId: string, evidence?: TaskEvidence): Promise<void> {
   if (!taskId) throw new Error('Task ID is required');
   const taskRef = doc(db, 'tasks', taskId);
 
@@ -178,13 +187,17 @@ export async function submitTask(taskId: string, childId: string): Promise<void>
   }
 
   const now = new Date();
-  await updateDoc(taskRef, {
+  const updateData: Record<string, unknown> = {
     status: 'submitted',
     submittedAt: now,
     reviewedAt: deleteField(),
     feedback: deleteField(),
     updatedAt: now,
-  });
+  };
+  if (evidence) {
+    updateData.evidence = evidence;
+  }
+  await updateDoc(taskRef, updateData);
 }
 
 export async function reviewTask(
@@ -246,7 +259,9 @@ export async function reviewTask(
       const balanceAfter = currentBalance + task.points;
       transaction.update(childRef, { points: balanceAfter });
 
-      const transactionRef = doc(collection(db, 'pointTransactions'));
+      // Deterministic ID keyed to the task prevents duplicate reward
+      // documents when Firestore retries the transaction callback.
+      const transactionRef = doc(db, 'pointTransactions', `reward_${task.id}`);
       const pointTransaction: PointTransaction = {
         id: transactionRef.id,
         familyId: task.familyId,

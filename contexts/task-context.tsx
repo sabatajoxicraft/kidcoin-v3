@@ -15,7 +15,8 @@ import {
   getFamilyPayoutRequests,
   reviewPayoutRequest as reviewPayoutRequestService,
 } from '@/lib/payout-service';
-import type { PayoutRequest, PointTransaction, Task } from '@/src/types';
+import type { EvidenceDraft, PayoutRequest, PointTransaction, Task, TaskEvidence } from '@/src/types';
+import { deleteTaskEvidence, uploadTaskEvidence } from '@/lib/evidence-service';
 
 export interface CreateTaskInput {
   title: string;
@@ -31,7 +32,7 @@ interface TaskContextType {
   loading: boolean;
   error: string | null;
   createTask: (input: CreateTaskInput) => Promise<void>;
-  submitTask: (taskId: string) => Promise<void>;
+  submitTask: (taskId: string, evidenceDraft?: EvidenceDraft) => Promise<void>;
   reviewTask: (taskId: string, decision: 'approved' | 'returned', feedback?: string) => Promise<void>;
   requestPayout: (requestedPoints: number, requestNote?: string) => Promise<void>;
   reviewPayoutRequest: (requestId: string, decision: 'approved' | 'rejected', reviewNote?: string) => Promise<void>;
@@ -140,7 +141,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const submitTask = async (taskId: string) => {
+  const submitTask = async (taskId: string, evidenceDraft?: EvidenceDraft) => {
     const scopedProfile = effectiveUserProfile;
     if (!scopedProfile?.familyId) throw new Error('Family context is not ready');
     if (!user) throw new Error('Authenticated user not found');
@@ -149,7 +150,51 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     await runWithState(async () => {
       const childId = scopedProfile.id;
       if (!childId) throw new Error('Child profile not found');
-      await submitTaskService(taskId, childId);
+      const familyId = scopedProfile.familyId;
+      if (!familyId) throw new Error('Family context is not ready');
+
+      // Snapshot any existing evidence path before upload so we can clean it up
+      // after a successful resubmission with a new draft (returned-task flow).
+      const priorStoragePath = evidenceDraft
+        ? tasks.find((t) => t.id === taskId)?.evidence?.storagePath
+        : undefined;
+
+      let evidence: TaskEvidence | undefined;
+      if (evidenceDraft) {
+        evidence = await uploadTaskEvidence(
+          familyId,
+          taskId,
+          childId,
+          evidenceDraft,
+        );
+      }
+
+      try {
+        await submitTaskService(taskId, childId, evidence);
+      } catch (submitError) {
+        // Upload succeeded but Firestore write failed — delete the orphaned object.
+        if (evidence) {
+          try {
+            await deleteTaskEvidence(evidence.storagePath);
+          } catch (cleanupError) {
+            throw new Error(
+              `Task submission failed: ${submitError instanceof Error ? submitError.message : String(submitError)}. ` +
+              `Evidence cleanup also failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+            );
+          }
+        }
+        throw submitError;
+      }
+
+      // Firestore write succeeded. Delete the prior evidence object when a new
+      // photo replaced it. Non-critical: log failures but do not surface them.
+      if (priorStoragePath && evidence && priorStoragePath !== evidence.storagePath) {
+        try {
+          await deleteTaskEvidence(priorStoragePath);
+        } catch (cleanupError) {
+          console.warn('[TaskContext] Failed to delete prior evidence after resubmission:', cleanupError);
+        }
+      }
       const scoped = await loadScopedData();
       setTasks(scoped.tasks);
       setTransactions(scoped.transactions);

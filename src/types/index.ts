@@ -31,6 +31,22 @@ export interface ChildProfile extends UserProfile {
   pendingPayoutPoints?: number;
 }
 
+export interface TaskEvidence {
+  downloadUrl: string;
+  storagePath: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  uploadedAt: Date;
+}
+
+export interface EvidenceDraft {
+  localUri: string;
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+}
+
 export type TaskStatus = 'assigned' | 'submitted' | 'approved' | 'returned';
 
 export interface Task {
@@ -42,6 +58,7 @@ export interface Task {
   assignedToChildId: string;
   createdByParentId: string;
   status: TaskStatus;
+  evidence?: TaskEvidence;
   feedback?: string;
   submittedAt?: Date;
   reviewedAt?: Date;

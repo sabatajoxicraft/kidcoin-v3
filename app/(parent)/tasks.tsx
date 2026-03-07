@@ -1,5 +1,6 @@
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
@@ -40,6 +41,26 @@ export default function ParentTasksScreen() {
       </ThemedText>
       <ThemedText style={styles.meta}>Status: {task.status}</ThemedText>
       {task.feedback ? <ThemedText style={styles.feedback}>Feedback: {task.feedback}</ThemedText> : null}
+
+      {task.evidence ? (
+        <View style={styles.evidenceContainer}>
+          <Image source={{ uri: task.evidence.downloadUrl }} style={styles.evidenceImage} contentFit="cover" />
+          <ThemedText style={styles.evidenceMeta}>
+            {task.evidence.fileName ?? 'file'}
+            {task.evidence.fileSize != null ? ` · ${(task.evidence.fileSize / 1024).toFixed(0)} KB` : ''}
+            {task.evidence.uploadedAt instanceof Date
+              ? ` · ${task.evidence.uploadedAt.toLocaleDateString()}`
+              : ''}
+          </ThemedText>
+          {task.submittedAt instanceof Date &&
+          task.evidence.uploadedAt instanceof Date &&
+          task.evidence.uploadedAt.getTime() < task.submittedAt.getTime() - 60_000 ? (
+            <ThemedText style={styles.staleEvidenceNote}>
+              ⚠️ Previous evidence — uploaded before this submission
+            </ThemedText>
+          ) : null}
+        </View>
+      ) : null}
 
       {showActions ? (
         <View style={styles.actionRow}>
@@ -159,4 +180,8 @@ const styles = StyleSheet.create({
   empty: { opacity: 0.6, marginBottom: 8 },
   error: { color: '#e53e3e', marginBottom: 8 },
   loading: { marginBottom: 8 },
+  evidenceContainer: { marginTop: 8, borderRadius: 8, overflow: 'hidden' },
+  evidenceImage: { width: '100%', height: 200, borderRadius: 8 },
+  evidenceMeta: { fontSize: 12, opacity: 0.6, marginTop: 4 },
+  staleEvidenceNote: { fontSize: 12, color: '#b7791f', marginTop: 2 },
 });
