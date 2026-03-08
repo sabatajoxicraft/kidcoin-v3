@@ -10,6 +10,7 @@ import { AuthProvider } from '@/contexts/auth-context';
 import { useAuth } from '@/hooks/use-auth';
 import { FamilyProvider, useFamily } from '@/contexts/family-context';
 import { TaskProvider } from '@/contexts/task-context';
+import { LessonProvider } from '@/contexts/lesson-context';
 
 export const unstable_settings = {
   anchor: '(parent)',
@@ -74,8 +75,10 @@ export default function RootLayout() {
         <AuthProvider>
           <FamilyProvider>
             <TaskProvider>
-              <RootLayoutNav />
-              <StatusBar style="auto" />
+              <LessonProvider>
+                <RootLayoutNav />
+                <StatusBar style="auto" />
+              </LessonProvider>
             </TaskProvider>
           </FamilyProvider>
         </AuthProvider>

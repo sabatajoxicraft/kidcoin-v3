@@ -70,13 +70,52 @@ export interface PointTransaction {
   id: string;
   familyId: string;
   childId: string;
-  type: 'task_reward' | 'adjustment' | 'payout_deduction';
+  type: 'task_reward' | 'adjustment' | 'payout_deduction' | 'lesson_reward';
   pointsDelta: number;
   balanceAfter: number;
   relatedTaskId?: string;
   relatedPayoutRequestId?: string;
+  relatedLessonId?: string;
   note?: string;
   createdAt: Date;
+}
+
+// ─── Lesson & Gamification Types ─────────────────────────────────
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+export interface Lesson {
+  id: string;
+  title: string;
+  description: string;
+  content: string;
+  ageGroup: AgeGroup;
+  pointsReward: number;
+  quiz: QuizQuestion[];
+}
+
+export interface LessonProgressRecord {
+  lessonId: string;
+  completed: boolean;
+  quizScore: number;
+  pointsAwarded: number;
+  completedAt: Date;
+}
+
+export interface BadgeDefinition {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface EarnedBadge {
+  badgeId: string;
+  earnedAt: Date;
 }
 
 export type PayoutRequestStatus = 'pending' | 'approved' | 'rejected';

@@ -146,6 +146,13 @@ export default function ChildDashboard() {
           <ThemedText style={styles.refreshText}>Refresh</ThemedText>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.lessonsButton, { backgroundColor: tintColor }]}
+          onPress={() => router.push('/(child)/lessons')}
+        >
+          <ThemedText style={styles.lessonsButtonText}>📚 Financial Lessons</ThemedText>
+        </TouchableOpacity>
+
         {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
         {loading ? <ActivityIndicator color={tintColor} style={styles.loader} /> : null}
 
@@ -353,6 +360,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   refreshText: { fontWeight: '600' },
+  lessonsButton: {
+    borderRadius: 8,
+    alignItems: 'center' as const,
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  lessonsButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   error: { color: '#e53e3e', marginBottom: 8 },
   loader: { marginBottom: 8 },
   sectionTitle: { marginTop: 12, marginBottom: 8 },
