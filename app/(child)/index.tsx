@@ -16,6 +16,13 @@ function isPositiveIntegerString(value: string): boolean {
   return /^[1-9]\d*$/.test(value);
 }
 
+// Native crop UI clips under system bars on Android, so we only enable it on iOS.
+const EVIDENCE_PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  quality: 0.7,
+  allowsEditing: Platform.OS === 'ios',
+};
+
 export default function ChildDashboard() {
   const { signOut } = useAuth();
   const { userProfile, family, children, activeChild, exitChildMode } = useFamily();
@@ -69,8 +76,8 @@ export default function ChildDashboard() {
       }
 
       const result = source === 'camera'
-        ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: Platform.OS === 'ios' })
-        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: Platform.OS === 'ios' });
+        ? await ImagePicker.launchCameraAsync(EVIDENCE_PICKER_OPTIONS)
+        : await ImagePicker.launchImageLibraryAsync(EVIDENCE_PICKER_OPTIONS);
 
       if (result.canceled || !result.assets?.[0]) return;
 
