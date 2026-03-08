@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
@@ -13,6 +14,7 @@ export default function ChildModeScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const tintColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
   const backgroundColor = useThemeColor({}, 'background');
@@ -52,8 +54,8 @@ export default function ChildModeScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <ThemedText type="title" style={styles.title}>Enter Child Mode</ThemedText>
         <ThemedText style={styles.subtitle}>Choose a child profile and enter their PIN.</ThemedText>
 
@@ -134,8 +136,8 @@ export default function ChildModeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 24, paddingTop: 60 },
-  content: { paddingBottom: 24 },
+  container: { flex: 1, paddingHorizontal: 24 },
+  content: {},
   title: { marginBottom: 8 },
   subtitle: { opacity: 0.7, marginBottom: 16 },
   loader: { marginBottom: 12 },

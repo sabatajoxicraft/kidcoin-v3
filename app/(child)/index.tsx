@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, TextInput, TouchableOpacity,
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
@@ -20,6 +21,7 @@ export default function ChildDashboard() {
   const { userProfile, family, children, activeChild, exitChildMode } = useFamily();
   const { tasks, transactions, payoutRequests, submitTask, requestPayout, refresh, loading, error } = useTask();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const tintColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
 
@@ -119,8 +121,8 @@ export default function ChildDashboard() {
   };
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <ThemedText type="title" style={styles.title}>My Tasks</ThemedText>
 
         <View style={[styles.pointsCard, { borderColor: tintColor + '44' }]}>
@@ -325,8 +327,8 @@ export default function ChildDashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 24, paddingTop: 60 },
-  content: { paddingBottom: 24 },
+  container: { flex: 1, paddingHorizontal: 24 },
+  content: {},
   title: { marginBottom: 16 },
   pointsCard: {
     borderWidth: 1,

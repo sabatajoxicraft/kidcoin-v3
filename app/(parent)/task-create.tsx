@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
@@ -11,6 +12,7 @@ export default function TaskCreateScreen() {
   const { children } = useFamily();
   const { createTask } = useTask();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const textColor = useThemeColor({}, 'text');
   const tintColor = useThemeColor({}, 'tint');
   const bgColor = useThemeColor({}, 'background');
@@ -57,7 +59,7 @@ export default function TaskCreateScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + 16 }]}>
       <ThemedText type="title" style={styles.title}>Create Task</ThemedText>
 
       <ThemedText style={styles.label}>Title</ThemedText>
@@ -133,7 +135,7 @@ export default function TaskCreateScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 24, paddingTop: 60 },
+  container: { flex: 1, paddingHorizontal: 24 },
   title: { marginBottom: 24, textAlign: 'center' },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 6, marginTop: 12 },
   input: {

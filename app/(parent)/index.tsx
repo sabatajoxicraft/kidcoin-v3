@@ -1,5 +1,6 @@
 import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
@@ -17,6 +18,7 @@ export default function ParentDashboard() {
   const { family, children } = useFamily();
   const { signOut } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const tintColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
 
@@ -33,7 +35,7 @@ export default function ParentDashboard() {
   );
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + 16 }]}>
       <ThemedText type="title" style={styles.title}>{family?.name ?? 'My Family'}</ThemedText>
 
       <FlatList
@@ -90,7 +92,7 @@ export default function ParentDashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 24, paddingTop: 60 },
+  container: { flex: 1, paddingHorizontal: 24 },
   title: { marginBottom: 24 },
   list: { flex: 1 },
   childItem: {

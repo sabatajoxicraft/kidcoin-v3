@@ -1,5 +1,6 @@
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -12,6 +13,7 @@ export default function ParentTasksScreen() {
   const { tasks, loading, error, reviewTask, refresh } = useTask();
   const { children } = useFamily();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const tintColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
   const submittedTasks = tasks.filter((task) => task.status === 'submitted');
@@ -84,7 +86,7 @@ export default function ParentTasksScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
       <ThemedText type="title" style={styles.title}>Tasks</ThemedText>
 
       <View style={styles.topActions}>
@@ -111,7 +113,7 @@ export default function ParentTasksScreen() {
       {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
       {loading ? <ActivityIndicator style={styles.loading} color={tintColor} /> : null}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
         <ThemedText type="subtitle" style={styles.sectionTitle}>Submitted (Awaiting Review)</ThemedText>
         {submittedTasks.length > 0 ? (
           submittedTasks.map((task) => renderTask(task, true))
@@ -145,11 +147,11 @@ export default function ParentTasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 24, paddingTop: 60 },
+  container: { flex: 1, paddingHorizontal: 24 },
   title: { marginBottom: 16 },
   topActions: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   scroll: { flex: 1 },
-  content: { paddingBottom: 24 },
+  content: {},
   sectionTitle: { marginTop: 12, marginBottom: 8 },
   card: {
     borderWidth: 1,
