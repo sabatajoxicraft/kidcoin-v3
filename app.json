@@ -49,8 +49,7 @@
           "cameraPermission": "KidCoin needs access to your camera so you can take task evidence photos.",
           "microphonePermission": false
         }
-      ],
-      "./plugins/withCropActivityTheme"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
