@@ -191,6 +191,50 @@ export function computeEarnedBadges(
   return badges;
 }
 
+// ─── Longest Streak (computed, not persisted) ──────────────────
+
+/**
+ * Returns the longest consecutive-day run ever recorded across all completions.
+ * Unlike computeLessonStreak (which measures the current active streak from
+ * today/yesterday), this scans the full history to find the all-time peak.
+ */
+export function computeLongestStreak(
+  progress: Record<string, LessonProgressRecord>,
+): number {
+  const completed = Object.values(progress).filter((p) => p.completed);
+  if (completed.length === 0) return 0;
+
+  // Normalise each completion to a local-calendar day key (same basis as
+  // computeLessonStreak) then convert to a sortable epoch-day integer so
+  // consecutive-day arithmetic stays simple.
+  const toLocalDayKey = (d: Date): string =>
+    `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const toLocalEpochDay = (d: Date): number => {
+    const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return Math.round(midnight.getTime() / (24 * 60 * 60 * 1000));
+  };
+
+  const uniqueKeys = [...new Set(completed.map((p) => toLocalDayKey(p.completedAt)))];
+  const dayNumbers = uniqueKeys
+    .map((key) => {
+      const [y, m, d] = key.split("-").map(Number);
+      return toLocalEpochDay(new Date(y, m, d));
+    })
+    .sort((a, b) => a - b);
+
+  let longest = 1;
+  let current = 1;
+  for (let i = 1; i < dayNumbers.length; i++) {
+    if (dayNumbers[i] === dayNumbers[i - 1] + 1) {
+      current++;
+      if (current > longest) longest = current;
+    } else {
+      current = 1;
+    }
+  }
+  return longest;
+}
+
 // ─── Streak Derivation (computed from progress timestamps) ──────
 
 export function computeLessonStreak(

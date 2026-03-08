@@ -8,6 +8,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useLessons } from '@/hooks/use-lessons';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { BADGE_DEFINITIONS } from '@/lib/lesson-catalog';
+import { computeLongestStreak } from '@/lib/lesson-service';
 import type { Lesson } from '@/src/types';
 import type { QuizResult } from '@/lib/lesson-service';
 
@@ -36,6 +37,7 @@ export default function LessonsScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   const completedCount = lessons.filter((l) => progress[l.id]?.completed === true).length;
+  const longestStreak = computeLongestStreak(progress);
 
   const openLesson = (lesson: Lesson) => {
     setSelectedLesson(lesson);
@@ -110,6 +112,12 @@ export default function LessonsScreen() {
               {streak > 0 ? `🔥 ${streak}` : '—'}
             </ThemedText>
             <ThemedText style={styles.summaryLabel}>Day Streak</ThemedText>
+          </View>
+          <View style={styles.summaryItem}>
+            <ThemedText style={styles.summaryValue}>
+              {longestStreak > 0 ? `⭐ ${longestStreak}` : '—'}
+            </ThemedText>
+            <ThemedText style={styles.summaryLabel}>Longest Streak</ThemedText>
           </View>
           <View style={styles.summaryItem}>
             <ThemedText style={styles.summaryValue}>

@@ -23,15 +23,21 @@ export default function ParentDashboard() {
   const textColor = useThemeColor({}, 'text');
 
   const renderChild = ({ item }: { item: ChildProfile }) => (
-    <View style={[styles.childItem, { borderColor: tintColor + '44' }]}>
+    <TouchableOpacity
+      style={[styles.childItem, { borderColor: tintColor + '44' }]}
+      onPress={() => router.push(`/(parent)/child/${item.id}`)}
+    >
       <View>
         <ThemedText style={styles.childName}>{item.displayName}</ThemedText>
         <ThemedText style={styles.pointsText}>{item.points} pts</ThemedText>
       </View>
-      <View style={[styles.badge, { backgroundColor: tintColor }]}>
-        <ThemedText style={styles.badgeText}>{AGE_GROUP_LABELS[item.ageGroup] ?? item.ageGroup}</ThemedText>
+      <View style={styles.childItemRight}>
+        <View style={[styles.badge, { backgroundColor: tintColor }]}>
+          <ThemedText style={styles.badgeText}>{AGE_GROUP_LABELS[item.ageGroup] ?? item.ageGroup}</ThemedText>
+        </View>
+        <ThemedText style={[styles.chevron, { color: tintColor }]}>›</ThemedText>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -105,6 +111,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 10,
   },
+  childItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chevron: { fontSize: 22, fontWeight: '300', lineHeight: 24 },
   childName: { fontSize: 16, fontWeight: '500' },
   pointsText: { fontSize: 13, opacity: 0.7, marginTop: 2 },
   badge: {
