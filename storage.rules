@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Family-scoped task evidence
+    // Path: families/{familyId}/tasks/{taskId}/evidence/{childId}/{fileName}
+    match /families/{familyId}/tasks/{taskId}/evidence/{childId}/{fileName} {
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      // Caller is the parent/owner of this family
+      function isParentOfFamily() {
+        return isSignedIn() &&
+          firestore.get(
+            /databases/(default)/documents/families/$(familyId)
+          ).data.ownerId == request.auth.uid;
+      }
+
+      // Caller is the child whose evidence folder is being accessed
+      function isChildOfFamily() {
+        return isSignedIn() &&
+          request.auth.uid == childId &&
+          firestore.get(
+            /databases/(default)/documents/users/$(childId)
+          ).data.familyId == familyId;
+      }
+
+      allow read, write: if isParentOfFamily() || isChildOfFamily();
+    }
+
+    // Deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
