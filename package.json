@@ -11,6 +11,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "build:android": "npx expo prebuild --platform android && cd android && ./gradlew assembleRelease",
+    "build:android:clone": "KIDCOIN_APP_VARIANT=clone npx expo prebuild --platform android --clean && cd android && ./gradlew assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../app-release-clone.apk && echo 'Clone APK ready: app-release-clone.apk'",
+    "android:clone": "KIDCOIN_APP_VARIANT=clone expo start --android",
     "apk:watch": "./scripts/apk-watcher.sh",
     "apk:watch:once": "./scripts/apk-watcher.sh --once",
     "apk:sync": "./scripts/apk-sync.sh",

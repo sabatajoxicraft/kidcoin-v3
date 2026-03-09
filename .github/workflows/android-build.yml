@@ -74,10 +74,54 @@ jobs:
           name: app-release
           path: android/app/build/outputs/apk/release/app-release.apk
 
+  build_clone:
+    runs-on: ubuntu-latest
+    needs: quality
+    if: github.ref == 'refs/heads/dev'
+    env:
+      KIDCOIN_APP_VARIANT: clone
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Prebuild Android (clone)
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build Android Release (clone)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Copy clone APK with distinct name
+        run: cp android/app/build/outputs/apk/release/app-release.apk app-release-clone.apk
+
+      - name: Upload Clone Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-clone
+          path: app-release-clone.apk
+
   publish_dev_apk:
     runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/dev' && needs.build.result == 'success'
+    needs: [build, build_clone]
+    if: github.ref == 'refs/heads/dev' && needs.build.result == 'success' && needs.build_clone.result == 'success'
     permissions:
       contents: write
     steps:
@@ -85,19 +129,26 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: app-release
+
+      - name: Download clone release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-clone
 
       - name: Publish latest dev APK release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-dev-apk
           name: latest-dev-apk
-          files: app-release.apk
+          files: |
+            app-release.apk
+            app-release-clone.apk
           overwrite_files: true
 
   publish_dev_snapshot:
     runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/dev' && needs.build.result == 'success'
+    needs: [build, build_clone]
+    if: github.ref == 'refs/heads/dev' && needs.build.result == 'success' && needs.build_clone.result == 'success'
     permissions:
       contents: write
     steps:
@@ -105,6 +156,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: app-release
+
+      - name: Download clone release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-release-clone
 
       - name: Publish per-build dev snapshot release
         uses: softprops/action-gh-release@v2
@@ -115,7 +171,9 @@ jobs:
             **Branch:** `${{ github.ref_name }}`
             **Commit:** `${{ github.sha }}`
             **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          files: app-release.apk
+          files: |
+            app-release.apk
+            app-release-clone.apk
           prerelease: true
 
   publish_release_apk:
