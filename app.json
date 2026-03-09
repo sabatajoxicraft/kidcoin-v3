@@ -49,6 +49,15 @@
           "cameraPermission": "KidCoin needs access to your camera so you can take task evidence photos.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/android-icon-monochrome.png",
+          "color": "#2B83C2",
+          "defaultChannel": "kidcoin-default",
+          "androidMode": "default"
+        }
       ]
     ],
     "experiments": {

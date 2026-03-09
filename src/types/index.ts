@@ -20,6 +20,16 @@ export interface UserProfile {
   familyId: string | null;
   photoURL?: string;
   createdAt: Date;
+  /** Push token stored after permission is granted. Used for future remote push delivery. */
+  expoPushToken?: string;
+  /**
+   * Indicates the flavour of token stored in `expoPushToken`.
+   * - `'expo'`   – Expo push token (requires EAS projectId; routed via Expo's push service).
+   * - `'device'` – Native FCM/APNs token obtained when no EAS projectId is configured.
+   */
+  pushTokenType?: 'expo' | 'device';
+  /** Timestamp of the last successful push token write. */
+  pushTokenUpdatedAt?: Date;
 }
 
 export interface ChildProfile extends UserProfile {

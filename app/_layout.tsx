@@ -11,6 +11,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { FamilyProvider, useFamily } from '@/contexts/family-context';
 import { TaskProvider } from '@/contexts/task-context';
 import { LessonProvider } from '@/contexts/lesson-context';
+import { useNotificationSetup } from '@/hooks/use-notification-setup';
+import { useTaskNotifications } from '@/hooks/use-task-notifications';
 
 export const unstable_settings = {
   anchor: '(parent)',
@@ -21,6 +23,11 @@ function RootLayoutNav() {
   const { effectiveRole, effectiveUserProfile, hasFamily, loading: familyLoading } = useFamily();
   const segments = useSegments();
   const router = useRouter();
+
+  // Notification foundation: setup (permissions + channel + token) and
+  // real-time transition-based local notifications.
+  useNotificationSetup();
+  useTaskNotifications();
 
   useEffect(() => {
     if (initializing || familyLoading) return;
