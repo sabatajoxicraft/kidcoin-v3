@@ -7,6 +7,8 @@ import {
   addChild as addChildService,
   getFamilyWithChildren,
   getUserProfile,
+  subscribeFamilyWithChildren,
+  subscribeUserProfile,
 } from '@/lib/family-service';
 
 interface FamilyContextType {
@@ -19,6 +21,7 @@ interface FamilyContextType {
   effectiveUserProfile: UserProfile | ChildProfile | null;
   hasFamily: boolean;
   loading: boolean;
+  error: string | null;
   createFamily: (familyName: string) => Promise<void>;
   addChild: (displayName: string, ageGroup: AgeGroup, pin: string) => Promise<void>;
   refreshFamily: () => Promise<void>;
@@ -35,7 +38,90 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // Subscribe to the authenticated user's own profile.
+  // When the profile has no familyId yet, we are done loading; otherwise we
+  // wait for the family+children subscriber below to fire first.
+  useEffect(() => {
+    if (!user) {
+      setUserProfile(null);
+      setFamily(null);
+      setChildren([]);
+      setActiveChildId(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    let active = true;
+    const unsubscribe = subscribeUserProfile(
+      user.uid,
+      (profile) => {
+        if (!active) return;
+        setUserProfile(profile);
+        if (!profile?.familyId) {
+          // New user with no family yet – nothing more to load
+          setLoading(false);
+        }
+        // If familyId is present, loading stays true until the family+children
+        // listener below fires for the first time.
+      },
+      (err) => {
+        if (!active) return;
+        console.error('[FamilyContext] user profile listener error:', err);
+        setError(err.message);
+        setLoading(false);
+      },
+    );
+    return () => { active = false; unsubscribe(); };
+  }, [user]); // Firebase auth user object is stable within a session
+
+  // Subscribe to family document and children collection once familyId is known.
+  // Re-subscribes automatically if the user's familyId changes.
+  useEffect(() => {
+    if (!userProfile?.familyId) {
+      setFamily(null);
+      setChildren([]);
+      return;
+    }
+    setLoading(true);
+    let active = true;
+    const unsubscribe = subscribeFamilyWithChildren(
+      userProfile.familyId,
+      ({ family: f, children: c }) => {
+        if (!active) return;
+        setFamily(f);
+        setChildren(c);
+        setLoading(false);
+      },
+      (err) => {
+        if (!active) return;
+        console.error('[FamilyContext] family listener error:', err);
+        setError(err.message);
+        setLoading(false);
+      },
+    );
+    return () => { active = false; unsubscribe(); };
+  }, [userProfile?.familyId]);
+
+  // Reset activeChildId whenever the family or authenticated user changes so
+  // stale child-mode sessions cannot persist across identity switches.
+  useEffect(() => {
+    setActiveChildId(null);
+  }, [family?.id, user?.uid, userProfile?.id, userProfile?.familyId, userProfile?.role]);
+
+  // Guard: if the active child is removed from the family, exit child mode.
+  useEffect(() => {
+    if (activeChildId && !children.some((child) => child.id === activeChildId)) {
+      setActiveChildId(null);
+    }
+  }, [activeChildId, children]);
+
+  // Explicit pull-to-refresh: one-time fetch for reassurance.
+  // Listeners keep data fresh automatically; this is only needed when the
+  // user explicitly requests a refresh gesture.
   const refreshFamily = async () => {
     if (!userProfile?.familyId) return;
     try {
@@ -47,42 +133,10 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
     }
   };
 
-  useEffect(() => {
-    if (!user) {
-      setUserProfile(null);
-      setFamily(null);
-      setChildren([]);
-      setActiveChildId(null);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    getUserProfile(user.uid)
-      .then(async (profile) => {
-        setUserProfile(profile);
-        if (profile?.familyId) {
-          const { family: f, children: c } = await getFamilyWithChildren(profile.familyId);
-          setFamily(f);
-          setChildren(c);
-        }
-      })
-      .catch((e) => console.error('[FamilyContext] load failed:', e))
-      .finally(() => setLoading(false));
-  }, [user]);
-
-  useEffect(() => {
-    setActiveChildId(null);
-  }, [family?.id, user?.uid, userProfile?.id, userProfile?.familyId, userProfile?.role]);
-
-  useEffect(() => {
-    if (activeChildId && !children.some((child) => child.id === activeChildId)) {
-      setActiveChildId(null);
-    }
-  }, [activeChildId, children]);
-
   const createFamily = async (familyName: string) => {
     if (!user) throw new Error('No user');
     const f = await createFamilyService(user.uid, user.email ?? '', user.displayName ?? '', familyName);
+    // Eagerly update local state; the profile listener will also fire shortly.
     const profile = await getUserProfile(user.uid);
     setUserProfile(profile);
     setFamily(f);
@@ -136,6 +190,7 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
         effectiveUserProfile,
         hasFamily,
         loading,
+        error,
         createFamily,
         addChild,
         refreshFamily,

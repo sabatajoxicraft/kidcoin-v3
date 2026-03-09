@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   runTransaction,
   where,
@@ -311,4 +312,53 @@ export async function reviewPayoutRequest(
 
     transaction.set(transactionRef, pointTransaction);
   });
+}
+
+// ─── Real-Time Subscriptions ────────────────────────────────────
+
+/**
+ * Subscribes to all payout requests for a family (parent view).
+ * Returns an unsubscribe function.
+ */
+export function subscribeFamilyPayoutRequests(
+  familyId: string,
+  onUpdate: (requests: PayoutRequest[]) => void,
+  onError: (error: Error) => void,
+): () => void {
+  const q = query(collection(db, 'payoutRequests'), where('familyId', '==', familyId));
+  return onSnapshot(
+    q,
+    (snap) => {
+      onUpdate(
+        sortByCreatedAtDesc(snap.docs.map((d) => mapPayoutRequest(d.data() as Record<string, unknown>))),
+      );
+    },
+    (error) => onError(error),
+  );
+}
+
+/**
+ * Subscribes to payout requests for a specific child.
+ * Returns an unsubscribe function.
+ */
+export function subscribeChildPayoutRequests(
+  familyId: string,
+  childId: string,
+  onUpdate: (requests: PayoutRequest[]) => void,
+  onError: (error: Error) => void,
+): () => void {
+  const q = query(
+    collection(db, 'payoutRequests'),
+    where('familyId', '==', familyId),
+    where('childId', '==', childId),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      onUpdate(
+        sortByCreatedAtDesc(snap.docs.map((d) => mapPayoutRequest(d.data() as Record<string, unknown>))),
+      );
+    },
+    (error) => onError(error),
+  );
 }

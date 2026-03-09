@@ -4,6 +4,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   runTransaction,
   setDoc,
@@ -312,4 +313,80 @@ export async function getChildTransactions(
   }
 
   return transactions.slice(0, Math.floor(limit));
+}
+
+// ─── Real-Time Subscriptions ────────────────────────────────────
+
+/**
+ * Subscribes to all tasks belonging to a family (parent view).
+ * Returns an unsubscribe function.
+ */
+export function subscribeFamilyTasks(
+  familyId: string,
+  onUpdate: (tasks: Task[]) => void,
+  onError: (error: Error) => void,
+): () => void {
+  const q = query(collection(db, 'tasks'), where('familyId', '==', familyId));
+  return onSnapshot(
+    q,
+    (snap) => {
+      onUpdate(sortByCreatedAtDesc(snap.docs.map((d) => mapTask(d.data() as Record<string, unknown>))));
+    },
+    (error) => onError(error),
+  );
+}
+
+/**
+ * Subscribes to tasks assigned to a specific child.
+ * Returns an unsubscribe function.
+ */
+export function subscribeChildTasks(
+  familyId: string,
+  childId: string,
+  onUpdate: (tasks: Task[]) => void,
+  onError: (error: Error) => void,
+): () => void {
+  const q = query(
+    collection(db, 'tasks'),
+    where('familyId', '==', familyId),
+    where('assignedToChildId', '==', childId),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      onUpdate(sortByCreatedAtDesc(snap.docs.map((d) => mapTask(d.data() as Record<string, unknown>))));
+    },
+    (error) => onError(error),
+  );
+}
+
+/**
+ * Subscribes to point transactions for a child, returning the most recent `resultLimit` entries.
+ * Sorting and slicing are done client-side to avoid requiring a composite index.
+ * Returns an unsubscribe function.
+ */
+export function subscribeChildTransactions(
+  familyId: string,
+  childId: string,
+  resultLimit: number,
+  onUpdate: (transactions: PointTransaction[]) => void,
+  onError: (error: Error) => void,
+): () => void {
+  const q = query(
+    collection(db, 'pointTransactions'),
+    where('familyId', '==', familyId),
+    where('childId', '==', childId),
+  );
+  return onSnapshot(
+    q,
+    (snap) => {
+      onUpdate(
+        sortByCreatedAtDesc(snap.docs.map((d) => mapTransaction(d.data() as Record<string, unknown>))).slice(
+          0,
+          resultLimit,
+        ),
+      );
+    },
+    (error) => onError(error),
+  );
 }

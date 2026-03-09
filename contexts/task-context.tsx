@@ -8,12 +8,17 @@ import {
   getFamilyTasks,
   reviewTask as reviewTaskService,
   submitTask as submitTaskService,
+  subscribeChildTasks,
+  subscribeChildTransactions,
+  subscribeFamilyTasks,
 } from '@/lib/task-service';
 import {
   createPayoutRequest as createPayoutRequestService,
   getChildPayoutRequests,
   getFamilyPayoutRequests,
   reviewPayoutRequest as reviewPayoutRequestService,
+  subscribeChildPayoutRequests,
+  subscribeFamilyPayoutRequests,
 } from '@/lib/payout-service';
 import type { EvidenceDraft, PayoutRequest, PointTransaction, Task, TaskEvidence } from '@/src/types';
 import { deleteTaskEvidence, uploadTaskEvidence } from '@/lib/evidence-service';
@@ -97,6 +102,117 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Listener-based subscription: sets up real-time Firestore listeners scoped to
+  // the current user role and effective profile. Re-subscribes automatically when
+  // the scope changes (auth, child-mode enter/exit, family join).
+  // Individual primitive deps are used instead of the whole object so that
+  // incidental changes (e.g. point-balance updates) don't restart listeners.
+  useEffect(() => {
+    if (!user || !effectiveUserProfile?.familyId) {
+      setTasks([]);
+      setTransactions([]);
+      setPayoutRequests([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
+    const familyId = effectiveUserProfile.familyId;
+    const profileId = effectiveUserProfile.id;
+
+    setLoading(true);
+    setError(null);
+    let active = true;
+
+    // Count down to loading=false once every listener has fired at least once.
+    const firstFire = {
+      tasks: false,
+      payouts: false,
+      // Parent view has no transactions; mark as already ready.
+      transactions: effectiveRole === 'parent',
+    };
+    const checkAllReady = (): void => {
+      if (firstFire.tasks && firstFire.payouts && firstFire.transactions) {
+        setLoading(false);
+      }
+    };
+
+    const handleError = (context: string) => (err: Error) => {
+      if (!active) return;
+      console.error(`[TaskContext] ${context} listener error:`, err);
+      setError(err.message);
+      setLoading(false);
+    };
+
+    let unsubTasks: (() => void) | undefined;
+    let unsubPayouts: (() => void) | undefined;
+    let unsubTransactions: (() => void) | undefined;
+
+    if (effectiveRole === 'parent') {
+      unsubTasks = subscribeFamilyTasks(
+        familyId,
+        (t) => {
+          if (!active) return;
+          setTasks(t);
+          if (!firstFire.tasks) { firstFire.tasks = true; checkAllReady(); }
+        },
+        handleError('family tasks'),
+      );
+      unsubPayouts = subscribeFamilyPayoutRequests(
+        familyId,
+        (p) => {
+          if (!active) return;
+          setPayoutRequests(p);
+          if (!firstFire.payouts) { firstFire.payouts = true; checkAllReady(); }
+        },
+        handleError('family payouts'),
+      );
+      setTransactions([]);
+    } else {
+      unsubTasks = subscribeChildTasks(
+        familyId,
+        profileId,
+        (t) => {
+          if (!active) return;
+          setTasks(t);
+          if (!firstFire.tasks) { firstFire.tasks = true; checkAllReady(); }
+        },
+        handleError('child tasks'),
+      );
+      unsubPayouts = subscribeChildPayoutRequests(
+        familyId,
+        profileId,
+        (p) => {
+          if (!active) return;
+          setPayoutRequests(p);
+          if (!firstFire.payouts) { firstFire.payouts = true; checkAllReady(); }
+        },
+        handleError('child payouts'),
+      );
+      unsubTransactions = subscribeChildTransactions(
+        familyId,
+        profileId,
+        10,
+        (t) => {
+          if (!active) return;
+          setTransactions(t);
+          if (!firstFire.transactions) { firstFire.transactions = true; checkAllReady(); }
+        },
+        handleError('child transactions'),
+      );
+    }
+
+    return () => {
+      active = false;
+      unsubTasks?.();
+      unsubPayouts?.();
+      unsubTransactions?.();
+    };
+  }, [user, effectiveRole, effectiveUserProfile?.id, effectiveUserProfile?.familyId]);
+
+  // Explicit pull-to-refresh: one-time fetch backed by the same scoped-data logic.
+  // Listeners keep data continuously fresh; this is called only when the user
+  // explicitly requests a refresh gesture.
   const refresh = useCallback(async () => {
     if (!user || !effectiveUserProfile?.familyId) {
       setTasks([]);
@@ -114,10 +230,6 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     });
   }, [effectiveUserProfile?.familyId, loadScopedData, runWithState, user]);
 
-  useEffect(() => {
-    refresh().catch(() => undefined);
-  }, [refresh]);
-
   const createTask = async (input: CreateTaskInput) => {
     if (!user || !userProfile?.familyId) throw new Error('Family context is not ready');
     if (userProfile.role !== 'parent' || effectiveRole !== 'parent') {
@@ -134,10 +246,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
         input.points,
         input.assignedToChildId,
       );
-      const scoped = await loadScopedData();
-      setTasks(scoped.tasks);
-      setTransactions(scoped.transactions);
-      setPayoutRequests(scoped.payoutRequests);
+      // Listener handles task list update automatically
     });
   };
 
@@ -195,10 +304,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
           console.warn('[TaskContext] Failed to delete prior evidence after resubmission:', cleanupError);
         }
       }
-      const scoped = await loadScopedData();
-      setTasks(scoped.tasks);
-      setTransactions(scoped.transactions);
-      setPayoutRequests(scoped.payoutRequests);
+      // Listener handles task list update automatically
     });
   };
 
@@ -210,10 +316,8 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
 
     await runWithState(async () => {
       await reviewTaskService(taskId, user.uid, decision, feedback);
-      const scoped = await loadScopedData();
-      setTasks(scoped.tasks);
-      setTransactions(scoped.transactions);
-      setPayoutRequests(scoped.payoutRequests);
+      // Listener handles task/transaction updates automatically;
+      // refreshFamily ensures point balance reflects immediately in family context.
       await refreshFamily();
     });
   };
@@ -229,10 +333,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
       const childId = scopedProfile.id;
       if (!childId) throw new Error('Child profile not found');
       await createPayoutRequestService(familyId, childId, requestedPoints, requestNote);
-      const scoped = await loadScopedData();
-      setTasks(scoped.tasks);
-      setTransactions(scoped.transactions);
-      setPayoutRequests(scoped.payoutRequests);
+      // Listener handles payout request list update automatically
     });
   };
 
@@ -248,10 +349,8 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
 
     await runWithState(async () => {
       await reviewPayoutRequestService(requestId, user.uid, decision, reviewNote);
-      const scoped = await loadScopedData();
-      setTasks(scoped.tasks);
-      setTransactions(scoped.transactions);
-      setPayoutRequests(scoped.payoutRequests);
+      // Listener handles payout request update automatically;
+      // refreshFamily ensures point balance reflects immediately in family context.
       await refreshFamily();
     });
   };
