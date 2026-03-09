@@ -28,6 +28,8 @@ export interface UserProfile {
    * - `'device'` – Native FCM/APNs token obtained when no EAS projectId is configured.
    */
   pushTokenType?: 'expo' | 'device';
+  /** Platform that registered the push token (e.g. 'android', 'ios'). */
+  pushTokenPlatform?: string;
   /** Timestamp of the last successful push token write. */
   pushTokenUpdatedAt?: Date;
 }

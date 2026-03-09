@@ -10,5 +10,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     ...config.android,
     package: IS_CLONE ? 'com.kidcoin.v3.clone' : (config.android?.package ?? 'com.kidcoin.v3'),
+    googleServicesFile: IS_CLONE
+      ? './google-services-clone.json'
+      : './google-services.json',
   },
 });

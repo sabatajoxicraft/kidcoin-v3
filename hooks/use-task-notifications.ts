@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFamily } from '@/contexts/family-context';
 import { useTask } from '@/contexts/task-context';
-import { scheduleLocalNotification } from '@/lib/notification-service';
+import { scheduleLocalNotification, hasStoredDeviceToken } from '@/lib/notification-service';
 import type { PayoutRequest, Task } from '@/src/types';
 
 /**
@@ -15,6 +15,10 @@ import type { PayoutRequest, Task } from '@/src/types';
  * - The baseline resets whenever the effective role or active profile changes
  *   (child-mode enter/exit), so the newly-scoped view is also silent on first
  *   load.
+ * - When the user has a stored FCM device token (`pushTokenType === 'device'`),
+ *   local diff notifications are suppressed because the server-side Cloud
+ *   Functions handle remote push delivery (including when the app is killed).
+ *   Local notifications remain as a fallback for users without a stored token.
  *
  * Must be rendered inside both `FamilyProvider` and `TaskProvider`.
  */
@@ -46,6 +50,26 @@ export function useTaskNotifications(): void {
       return;
     }
 
+    // When the user has a stored FCM device token, server-side Cloud Functions
+    // handle push delivery — skip local notifications to avoid duplicates.
+    // Two conditions cover this:
+    //   1. Firestore profile has already propagated pushTokenType === 'device'
+    //      (long-term source of truth).
+    //   2. storePushToken() succeeded in this process but the profile listener
+    //      hasn't reflected the new field yet (closes the post-registration race).
+    // Note: effectiveUserProfile.id matches user.uid for the parent but is a
+    // distinct Firestore-generated ID for children, so child-mode local
+    // notifications are never accidentally suppressed by the parent's token.
+    if (
+      effectiveUserProfile?.pushTokenType === 'device' ||
+      (effectiveUserProfile?.id != null &&
+        hasStoredDeviceToken(effectiveUserProfile.id))
+    ) {
+      prevTasksRef.current = tasks;
+      prevPayoutsRef.current = payoutRequests;
+      return;
+    }
+
     const prevTasks = prevTasksRef.current ?? [];
     const prevPayouts = prevPayoutsRef.current ?? [];
 
@@ -57,7 +81,7 @@ export function useTaskNotifications(): void {
 
     prevTasksRef.current = tasks;
     prevPayoutsRef.current = payoutRequests;
-  }, [tasks, payoutRequests, loading, effectiveRole, children]);
+  }, [tasks, payoutRequests, loading, effectiveRole, effectiveUserProfile?.id, effectiveUserProfile?.pushTokenType, children]);
 }
 
 // ─── Role-specific diff helpers ──────────────────────────────────────────────
