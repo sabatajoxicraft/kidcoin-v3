@@ -10,6 +10,11 @@ import {
   subscribeFamilyWithChildren,
   subscribeUserProfile,
 } from '@/lib/family-service';
+import {
+  saveChildModeSession,
+  loadChildModeSession,
+  clearChildModeSession,
+} from '@/lib/child-mode-session';
 
 interface FamilyContextType {
   family: Family | null;
@@ -26,18 +31,21 @@ interface FamilyContextType {
   addChild: (displayName: string, ageGroup: AgeGroup, pin: string) => Promise<void>;
   refreshFamily: () => Promise<void>;
   enterChildMode: (childId: string, pin: string) => Promise<void>;
-  exitChildMode: () => void;
+  exitChildMode: () => Promise<void>;
 }
 
 const FamilyContext = createContext<FamilyContextType | undefined>(undefined);
 
 export function FamilyProvider({ children: reactChildren }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, initializing } = useAuth();
   const [family, setFamily] = useState<Family | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Stays true until the one-time child-mode restore attempt has completed,
+  // preventing _layout.tsx from routing before we know whether to land in child mode.
+  const [isRestoringChildMode, setIsRestoringChildMode] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Subscribe to the authenticated user's own profile.
@@ -108,16 +116,68 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
 
   // Reset activeChildId whenever the family or authenticated user changes so
   // stale child-mode sessions cannot persist across identity switches.
+  // Re-arm isRestoringChildMode so the restore effect can run for the new identity.
   useEffect(() => {
     setActiveChildId(null);
+    setIsRestoringChildMode(true);
   }, [family?.id, user?.uid, userProfile?.id, userProfile?.familyId, userProfile?.role]);
 
-  // Guard: if the active child is removed from the family, exit child mode.
+  // Guard: if the active child is removed from the family, exit child mode and
+  // clear the persisted session so the stale child cannot be restored on next launch.
   useEffect(() => {
     if (activeChildId && !children.some((child) => child.id === activeChildId)) {
       setActiveChildId(null);
+      clearChildModeSession().catch(console.error);
     }
   }, [activeChildId, children]);
+
+  // Restore child mode from AsyncStorage on cold start.
+  // Runs once per identity: after auth initialization and family + children data
+  // are loaded, validates the persisted session against the current user/family
+  // before restoring.  Keeps isRestoringChildMode true until the attempt
+  // completes so that _layout.tsx (which gates on `loading`) cannot route
+  // before restoration.
+  //
+  // The `initializing` guard is critical: during auth startup, user=null even
+  // though auth has not yet rehydrated.  Without this guard the no-user branch
+  // would clear (or prematurely dismiss) the persisted session before we know
+  // whether a signed-in user exists.
+  useEffect(() => {
+    if (!isRestoringChildMode || loading || initializing) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!user || !userProfile?.familyId) {
+          // Auth has fully resolved but there is no user or no family — any
+          // persisted session is now invalid; clear it.
+          await clearChildModeSession();
+        } else {
+          const session = await loadChildModeSession();
+          if (cancelled) return;
+          if (
+            session &&
+            session.parentUid === user.uid &&
+            session.familyId === userProfile.familyId &&
+            children.some((c) => c.id === session.childId)
+          ) {
+            setActiveChildId(session.childId);
+          } else if (session) {
+            // Session is stale (identity mismatch or child removed) — discard it.
+            await clearChildModeSession();
+          }
+        }
+      } catch (e) {
+        console.error('[FamilyContext] child mode restore failed:', e);
+      } finally {
+        if (!cancelled) setIsRestoringChildMode(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isRestoringChildMode, loading, initializing, user, userProfile?.familyId, children]);
 
   // Explicit pull-to-refresh: one-time fetch for reassurance.
   // Listeners keep data fresh automatically; this is only needed when the
@@ -150,7 +210,7 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
   };
 
   const enterChildMode = async (childId: string, pin: string) => {
-    if (!userProfile?.familyId || userProfile.role !== 'parent') {
+    if (!user || !userProfile?.familyId || userProfile.role !== 'parent') {
       throw new Error('Only parents can enter child mode');
     }
 
@@ -163,10 +223,19 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
     const pinHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin);
     if (pinHash !== child.pinHash) throw new Error('Invalid PIN');
 
+    // Persist first — only switch UI into child mode if storage succeeds.
+    await saveChildModeSession({
+      parentUid: user.uid,
+      familyId: userProfile.familyId,
+      childId: child.id,
+    });
     setActiveChildId(child.id);
   };
 
-  const exitChildMode = () => {
+  const exitChildMode = async () => {
+    // Clear storage first — only update UI state once the clear has succeeded
+    // so a failed clear cannot leave a stale session that restores on next launch.
+    await clearChildModeSession();
     setActiveChildId(null);
   };
 
@@ -189,7 +258,7 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
         effectiveRole,
         effectiveUserProfile,
         hasFamily,
-        loading,
+        loading: initializing || loading || isRestoringChildMode,
         error,
         createFamily,
         addChild,

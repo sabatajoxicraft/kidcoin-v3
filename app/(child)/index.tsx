@@ -323,8 +323,8 @@ export default function ChildDashboard() {
         {activeChild ? (
           <TouchableOpacity
             style={[styles.switchButton, { borderColor: textColor + '44' }]}
-            onPress={() => {
-              exitChildMode();
+            onPress={async () => {
+              await exitChildMode();
               router.replace('/(parent)');
             }}
           >
