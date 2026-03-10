@@ -9,6 +9,7 @@ import {
   getUserProfile,
   subscribeFamilyWithChildren,
   subscribeUserProfile,
+  updateChildWeeklyAllowance as updateChildWeeklyAllowanceService,
 } from '@/lib/family-service';
 import {
   saveChildModeSession,
@@ -32,6 +33,7 @@ interface FamilyContextType {
   refreshFamily: () => Promise<void>;
   enterChildMode: (childId: string, pin: string) => Promise<void>;
   exitChildMode: () => Promise<void>;
+  updateChildWeeklyAllowance: (childId: string, weeklyAllowancePoints: number) => Promise<void>;
 }
 
 const FamilyContext = createContext<FamilyContextType | undefined>(undefined);
@@ -239,6 +241,14 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
     setActiveChildId(null);
   };
 
+  const updateChildWeeklyAllowance = async (childId: string, weeklyAllowancePoints: number) => {
+    if (!userProfile?.familyId) throw new Error('No family');
+    if (userProfile.role !== 'parent' || activeChildId !== null) {
+      throw new Error('Only parents can update weekly allowance');
+    }
+    await updateChildWeeklyAllowanceService(userProfile.familyId, childId, weeklyAllowancePoints);
+  };
+
   const hasFamily = userProfile?.familyId != null;
   const activeChild = useMemo(
     () => children.find((child) => child.id === activeChildId) ?? null,
@@ -265,6 +275,7 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
         refreshFamily,
         enterChildMode,
         exitChildMode,
+        updateChildWeeklyAllowance,
       }}
     >
       {reactChildren}

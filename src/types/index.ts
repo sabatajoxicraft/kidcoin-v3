@@ -41,6 +41,7 @@ export interface ChildProfile extends UserProfile {
   points: number;
   familyId: string;
   pendingPayoutPoints?: number;
+  weeklyAllowancePoints?: number;
 }
 
 export interface TaskEvidence {
@@ -82,7 +83,7 @@ export interface PointTransaction {
   id: string;
   familyId: string;
   childId: string;
-  type: 'task_reward' | 'adjustment' | 'payout_deduction' | 'lesson_reward';
+  type: 'task_reward' | 'adjustment' | 'payout_deduction' | 'lesson_reward' | 'weekly_allowance';
   pointsDelta: number;
   balanceAfter: number;
   relatedTaskId?: string;

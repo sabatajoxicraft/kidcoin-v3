@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, collection, query, where, getDocs, onSnapshot, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, onSnapshot, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
 import * as Crypto from 'expo-crypto';
 import { db } from '@/lib/firebase';
 import type { Family, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
@@ -81,10 +81,35 @@ export async function getFamilyWithChildren(
       ...(cd as Omit<ChildProfile, 'createdAt'>),
       createdAt: cd.createdAt instanceof Timestamp ? cd.createdAt.toDate() : (cd.createdAt as Date),
       pendingPayoutPoints: typeof cd.pendingPayoutPoints === 'number' ? cd.pendingPayoutPoints : 0,
+      weeklyAllowancePoints: typeof cd.weeklyAllowancePoints === 'number' ? cd.weeklyAllowancePoints : undefined,
     };
   });
 
   return { family, children };
+}
+
+export async function updateChildWeeklyAllowance(
+  familyId: string,
+  childId: string,
+  weeklyAllowancePoints: number,
+): Promise<void> {
+  const childRef = doc(db, 'users', childId);
+  const snap = await getDoc(childRef);
+  if (!snap.exists()) throw new Error('Child not found');
+  const data = snap.data();
+  if (data.role !== 'child') throw new Error('User is not a child');
+  if (data.familyId !== familyId) throw new Error('Child does not belong to this family');
+
+  if (weeklyAllowancePoints === 0) {
+    await updateDoc(childRef, { weeklyAllowancePoints: deleteField() });
+    return;
+  }
+
+  if (!Number.isInteger(weeklyAllowancePoints) || weeklyAllowancePoints <= 0) {
+    throw new Error('weeklyAllowancePoints must be a positive integer when provided');
+  }
+
+  await updateDoc(childRef, { weeklyAllowancePoints });
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
@@ -180,6 +205,7 @@ export function subscribeFamilyWithChildren(
           ...(cd as Omit<ChildProfile, 'createdAt'>),
           createdAt: cd.createdAt instanceof Timestamp ? cd.createdAt.toDate() : (cd.createdAt as Date),
           pendingPayoutPoints: typeof cd.pendingPayoutPoints === 'number' ? cd.pendingPayoutPoints : 0,
+          weeklyAllowancePoints: typeof cd.weeklyAllowancePoints === 'number' ? cd.weeklyAllowancePoints : undefined,
         };
       });
       tryEmit();

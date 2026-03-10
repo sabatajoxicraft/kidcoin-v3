@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Keyboard, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,13 +33,20 @@ export default function ChildProgressScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tintColor = useThemeColor({}, 'tint');
-  const { children } = useFamily();
+  const textColor = useThemeColor({}, 'text');
+  const bgColor = useThemeColor({}, 'background');
+  const { children, updateChildWeeklyAllowance } = useFamily();
 
   const child = children.find((c) => c.id === id);
 
   const [progress, setProgress] = useState<Record<string, LessonProgressRecord>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [allowanceInput, setAllowanceInput] = useState('');
+  const [allowanceSaving, setAllowanceSaving] = useState(false);
+  const [allowanceError, setAllowanceError] = useState<string | null>(null);
+  const [allowanceSuccess, setAllowanceSuccess] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -52,6 +59,36 @@ export default function ChildProgressScreen() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (child?.weeklyAllowancePoints) {
+      setAllowanceInput(String(child.weeklyAllowancePoints));
+    } else {
+      setAllowanceInput('');
+    }
+  }, [child?.weeklyAllowancePoints]);
+
+  const handleSaveAllowance = async () => {
+    Keyboard.dismiss();
+    setAllowanceError(null);
+    setAllowanceSuccess(false);
+    const trimmed = allowanceInput.trim();
+    const value = trimmed === '' ? 0 : Number(trimmed);
+    if (trimmed !== '' && (!Number.isInteger(value) || value < 0)) {
+      setAllowanceError('Enter a whole number of points (or leave blank to disable).');
+      return;
+    }
+    setAllowanceSaving(true);
+    try {
+      await updateChildWeeklyAllowance(child!.id, value);
+      setAllowanceSuccess(true);
+      setTimeout(() => setAllowanceSuccess(false), 2000);
+    } catch (err: unknown) {
+      setAllowanceError(err instanceof Error ? err.message : 'Failed to save allowance.');
+    } finally {
+      setAllowanceSaving(false);
+    }
+  };
 
   if (!child) {
     return (
@@ -118,6 +155,46 @@ export default function ChildProgressScreen() {
                   <ThemedText style={styles.summaryLabel}>Longest Streak</ThemedText>
                 </View>
               </View>
+            </View>
+
+            {/* Weekly Allowance */}
+            <View style={[styles.summaryCard, { borderColor: tintColor + '44' }]}>
+              <ThemedText type="defaultSemiBold" style={styles.allowanceTitle}>Weekly Allowance</ThemedText>
+              <ThemedText style={styles.allowanceHint}>
+                Points deposited automatically every Monday at 06:00 (SAST). Set to 0 or leave blank to disable.
+              </ThemedText>
+              <TextInput
+                style={[styles.allowanceInput, { borderColor: tintColor, color: textColor, backgroundColor: bgColor }]}
+                placeholder="e.g. 50"
+                placeholderTextColor={textColor + '88'}
+                value={allowanceInput}
+                onChangeText={(text) => {
+                  setAllowanceSuccess(false);
+                  setAllowanceError(null);
+                  setAllowanceInput(text);
+                }}
+                keyboardType="numeric"
+                editable={!allowanceSaving}
+                returnKeyType="done"
+                onSubmitEditing={handleSaveAllowance}
+              />
+              {allowanceError && (
+                <ThemedText style={styles.error}>{allowanceError}</ThemedText>
+              )}
+              {allowanceSuccess && (
+                <ThemedText style={styles.allowanceSuccess}>✓ Saved</ThemedText>
+              )}
+              <TouchableOpacity
+                style={[styles.allowanceButton, { backgroundColor: tintColor }, allowanceSaving && styles.allowanceButtonDisabled]}
+                onPress={handleSaveAllowance}
+                disabled={allowanceSaving}
+              >
+                {allowanceSaving ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <ThemedText style={styles.allowanceButtonText}>Save</ThemedText>
+                )}
+              </TouchableOpacity>
             </View>
 
             {/* Earned Badges */}
@@ -214,6 +291,15 @@ const styles = StyleSheet.create({
   lessonPoints: { fontSize: 13, fontWeight: '700' },
   lessonDescription: { marginTop: 4, opacity: 0.75, fontSize: 13 },
   completedLabel: { marginTop: 6, fontSize: 12, opacity: 0.65 },
+
+  // Allowance
+  allowanceTitle: { fontSize: 16, marginBottom: 4 },
+  allowanceHint: { fontSize: 12, opacity: 0.6, marginBottom: 10 },
+  allowanceInput: { borderWidth: 1, borderRadius: 8, padding: 10, fontSize: 16, marginBottom: 8 },
+  allowanceSuccess: { color: '#38a169', fontSize: 13, marginBottom: 6 },
+  allowanceButton: { borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 4 },
+  allowanceButtonDisabled: { opacity: 0.6 },
+  allowanceButtonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
 
   // Shared
   error: { color: '#e53e3e', marginBottom: 8 },

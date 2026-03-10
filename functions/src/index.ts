@@ -5,6 +5,7 @@ import {
   onDocumentCreated,
   onDocumentUpdated,
 } from 'firebase-functions/v2/firestore';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { logger } from 'firebase-functions/v2';
 
 initializeApp();
@@ -211,5 +212,132 @@ export const onPayoutUpdated = onDocumentUpdated(
         );
       }
     }
+  },
+);
+
+// ─── Weekly Allowance ────────────────────────────────────────────────────────
+
+/** Returns the current date key (YYYY-MM-DD) in the given IANA timezone. */
+function localDateKey(timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const p: Record<string, string> = {};
+  for (const { type, value } of parts) p[type] = value;
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/**
+ * Deposits weekly allowance points for every child with a positive
+ * weeklyAllowancePoints value.  Runs every Monday at 06:00 SAST.
+ *
+ * Idempotency: each deposit uses a deterministic document ID based on the
+ * child ID and the Monday date key (YYYY-MM-DD), so re-runs within the same
+ * week are no-ops.
+ */
+export const weeklyAllowanceDeposit = onSchedule(
+  {
+    schedule: 'every monday 06:00',
+    timeZone: 'Africa/Johannesburg',
+    retryCount: 3,
+  },
+  async () => {
+    // Compute the current date key in SAST for idempotency
+    const mondayKey = localDateKey('Africa/Johannesburg');
+
+    logger.info('weeklyAllowanceDeposit starting', { mondayKey });
+
+    // Query all child users; positive-allowance check is done inside the loop
+    const childrenSnap = await firestore
+      .collection('users')
+      .where('role', '==', 'child')
+      .get();
+
+    if (childrenSnap.empty) {
+      logger.info('No children found');
+      return;
+    }
+
+    let deposited = 0;
+    let skipped = 0;
+
+    for (const childDoc of childrenSnap.docs) {
+      const childData = childDoc.data();
+      const childId = childDoc.id;
+      const familyId = childData.familyId as string | undefined;
+
+      // Guard: must be a valid child with a family and a positive allowance
+      if (childData.role !== 'child' || !familyId) {
+        skipped++;
+        continue;
+      }
+      if (!childData.weeklyAllowancePoints || childData.weeklyAllowancePoints <= 0) {
+        continue;
+      }
+
+      const txDocId = `weekly_allowance_${childId}_${mondayKey}`;
+      const txRef = firestore.doc(`pointTransactions/${txDocId}`);
+
+      try {
+        const txResult = await firestore.runTransaction(async (transaction) => {
+          // Check idempotency — if this week's deposit already exists, skip
+          const existingTx = await transaction.get(txRef);
+          if (existingTx.exists) {
+            return 'already_done' as const;
+          }
+
+          // Re-read the child doc inside the transaction for consistency
+          const freshChildSnap = await transaction.get(childDoc.ref);
+          const freshChild = freshChildSnap.data();
+          if (!freshChild || freshChild.role !== 'child' || !freshChild.familyId) {
+            return 'skipped' as const;
+          }
+
+          const freshAllowance =
+            typeof freshChild.weeklyAllowancePoints === 'number'
+              ? freshChild.weeklyAllowancePoints
+              : 0;
+          if (freshAllowance <= 0) {
+            return 'skipped' as const;
+          }
+
+          const currentPoints = typeof freshChild.points === 'number' ? freshChild.points : 0;
+          const balanceAfter = currentPoints + freshAllowance;
+
+          // Update child's point balance
+          transaction.update(childDoc.ref, { points: balanceAfter });
+
+          // Write the point transaction
+          transaction.set(txRef, {
+            id: txDocId,
+            familyId: freshChild.familyId,
+            childId,
+            type: 'weekly_allowance',
+            pointsDelta: freshAllowance,
+            balanceAfter,
+            note: `Weekly allowance deposit (${mondayKey})`,
+            createdAt: new Date(),
+          });
+
+          return 'deposited' as const;
+        });
+
+        if (txResult === 'deposited') {
+          deposited++;
+        } else {
+          skipped++;
+        }
+      } catch (err) {
+        logger.error('Weekly allowance deposit failed for child', {
+          childId,
+          error: err,
+        });
+      }
+    }
+
+    logger.info('weeklyAllowanceDeposit complete', { deposited, skipped });
   },
 );
