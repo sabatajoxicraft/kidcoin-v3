@@ -13,6 +13,7 @@ import { TaskProvider } from '@/contexts/task-context';
 import { LessonProvider } from '@/contexts/lesson-context';
 import { useNotificationSetup } from '@/hooks/use-notification-setup';
 import { useTaskNotifications } from '@/hooks/use-task-notifications';
+import { useNotificationResponse } from '@/hooks/use-notification-response';
 
 export const unstable_settings = {
   anchor: '(parent)',
@@ -28,6 +29,19 @@ function RootLayoutNav() {
   // real-time transition-based local notifications.
   useNotificationSetup();
   useTaskNotifications();
+
+  // Deep-link routing: navigate to the relevant screen when the user taps a
+  // task or payout notification. Deferred until auth + family are ready AND
+  // the app is already sitting in the correct base route group so notification
+  // routing never races the base-route redirect below (cold-start safety).
+  const expectedGroup = effectiveRole === 'child' ? '(child)' : '(parent)';
+  const notificationReady =
+    !initializing &&
+    !familyLoading &&
+    !!user &&
+    hasFamily &&
+    segments[0] === expectedGroup;
+  useNotificationResponse(notificationReady);
 
   useEffect(() => {
     if (initializing || familyLoading) return;

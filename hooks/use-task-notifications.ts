@@ -97,17 +97,17 @@ function notifyChildTransitions(
 
     // Newly assigned task (not in previous snapshot)
     if (!prev && task.status === 'assigned') {
-      fire('📋 New Task Assigned', `"${task.title}" has been assigned to you!`);
+      fire('📋 New Task Assigned', `"${task.title}" has been assigned to you!`, { type: 'task_assigned', taskId: task.id });
       continue;
     }
 
     // Parent reviewed a submitted task
     if (prev?.status === 'submitted') {
       if (task.status === 'approved') {
-        fire('✅ Task Approved!', `"${task.title}" was approved — you earned ${task.points} pts!`);
+        fire('✅ Task Approved!', `"${task.title}" was approved — you earned ${task.points} pts!`, { type: 'task_approved', taskId: task.id });
       } else if (task.status === 'returned') {
         const detail = task.feedback ? `: ${task.feedback}` : '.';
-        fire('↩️ Task Returned', `"${task.title}" needs changes${detail}`);
+        fire('↩️ Task Returned', `"${task.title}" needs changes${detail}`, { type: 'task_returned', taskId: task.id });
       }
     }
   }
@@ -116,9 +116,9 @@ function notifyChildTransitions(
     const prev = prevPayouts.find((p) => p.id === payout.id);
     if (prev?.status === 'pending') {
       if (payout.status === 'approved') {
-        fire('💰 Payout Approved!', `Your request for ${payout.requestedPoints} pts was approved!`);
+        fire('💰 Payout Approved!', `Your request for ${payout.requestedPoints} pts was approved!`, { type: 'payout_approved', requestId: payout.id });
       } else if (payout.status === 'rejected') {
-        fire('❌ Payout Not Approved', `Your request for ${payout.requestedPoints} pts was declined.`);
+        fire('❌ Payout Not Approved', `Your request for ${payout.requestedPoints} pts was declined.`, { type: 'payout_rejected', requestId: payout.id });
       }
     }
   }
@@ -142,7 +142,7 @@ function notifyParentTransitions(
       (prev?.status === 'returned' && task.status === 'submitted');
 
     if (justSubmitted) {
-      fire('📸 Task Ready for Review', `"${task.title}" has been submitted.`);
+      fire('📸 Task Ready for Review', `"${task.title}" has been submitted.`, { type: 'task_submitted', taskId: task.id });
     }
   }
 
@@ -153,13 +153,13 @@ function notifyParentTransitions(
     if (!prev && payout.status === 'pending') {
       const child = children.find((c) => c.id === payout.childId);
       const childName = child?.displayName ?? 'Your child';
-      fire('💳 Payout Request', `${childName} is requesting ${payout.requestedPoints} pts.`);
+      fire('💳 Payout Request', `${childName} is requesting ${payout.requestedPoints} pts.`, { type: 'payout_created', requestId: payout.id });
     }
   }
 }
 
-function fire(title: string, body: string): void {
-  scheduleLocalNotification(title, body).catch((err) =>
+function fire(title: string, body: string, data?: Record<string, string>): void {
+  scheduleLocalNotification(title, body, data).catch((err) =>
     console.warn('[notifications] Failed to schedule:', err),
   );
 }

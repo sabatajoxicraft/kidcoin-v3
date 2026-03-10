@@ -82,9 +82,10 @@ export async function requestNotificationPermission(): Promise<boolean> {
 export async function scheduleLocalNotification(
   title: string,
   body: string,
+  data?: Record<string, string>,
 ): Promise<void> {
   await Notifications.scheduleNotificationAsync({
-    content: { title, body, sound: 'default', data: {} },
+    content: { title, body, sound: 'default', data: data ?? {} },
     trigger: null,
   });
 }
