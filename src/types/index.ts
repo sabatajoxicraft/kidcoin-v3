@@ -142,6 +142,22 @@ export interface EarnedBadge {
   earnedAt: Date;
 }
 
+// ─── Savings Goals ────────────────────────────────────────────
+
+export type SavingsGoalStatus = 'active' | 'archived';
+
+export interface SavingsGoal {
+  id: string;
+  familyId: string;
+  childId: string;
+  title: string;
+  targetPoints: number;
+  status: SavingsGoalStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt?: Date;
+}
+
 export type PayoutRequestStatus = 'pending' | 'approved' | 'rejected';
 
 export interface PayoutRequest {

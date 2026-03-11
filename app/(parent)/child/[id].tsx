@@ -14,7 +14,8 @@ import {
   computeLongestStreak,
   getChildLessonProgress,
 } from '@/lib/lesson-service';
-import type { EarnedBadge, LessonProgressRecord } from '@/src/types';
+import { goalReached, safeGoalPct, safeTargetDisplay, subscribeChildSavingsGoals } from '@/lib/goal-service';
+import type { EarnedBadge, LessonProgressRecord, SavingsGoal } from '@/src/types';
 
 const AGE_GROUP_LABELS: Record<string, string> = {
   junior: 'Junior',
@@ -38,6 +39,7 @@ export default function ChildProgressScreen() {
   const { children, updateChildWeeklyAllowance } = useFamily();
 
   const child = children.find((c) => c.id === id);
+  const childFamilyId = child?.familyId ?? '';
 
   const [progress, setProgress] = useState<Record<string, LessonProgressRecord>>({});
   const [loading, setLoading] = useState(true);
@@ -47,6 +49,10 @@ export default function ChildProgressScreen() {
   const [allowanceSaving, setAllowanceSaving] = useState(false);
   const [allowanceError, setAllowanceError] = useState<string | null>(null);
   const [allowanceSuccess, setAllowanceSuccess] = useState(false);
+
+  const [childGoals, setChildGoals] = useState<SavingsGoal[]>([]);
+  const [goalsLoading, setGoalsLoading] = useState(true);
+  const [goalsError, setGoalsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -67,6 +73,28 @@ export default function ChildProgressScreen() {
       setAllowanceInput('');
     }
   }, [child?.weeklyAllowancePoints]);
+
+  useEffect(() => {
+    if (!id || !childFamilyId) {
+      setGoalsLoading(false);
+      return;
+    }
+    setGoalsLoading(true);
+    setGoalsError(null);
+    const unsub = subscribeChildSavingsGoals(
+      childFamilyId,
+      id,
+      (goals) => {
+        setChildGoals(goals);
+        setGoalsLoading(false);
+      },
+      (err) => {
+        setGoalsError(err instanceof Error ? err.message : 'Failed to load savings goals.');
+        setGoalsLoading(false);
+      },
+    );
+    return unsub;
+  }, [id, childFamilyId]);
 
   const handleSaveAllowance = async () => {
     Keyboard.dismiss();
@@ -218,6 +246,83 @@ export default function ChildProgressScreen() {
               </View>
             )}
 
+            {/* Savings Goals */}
+            <ThemedText type="subtitle" style={[styles.sectionTitle, styles.sectionTitleSpaced]}>
+              Savings Goals
+            </ThemedText>
+            {goalsError && (
+              <ThemedText style={styles.error}>{goalsError}</ThemedText>
+            )}
+            {goalsLoading ? (
+              <ActivityIndicator color={tintColor} style={styles.loader} />
+            ) : childGoals.length === 0 ? (
+              <ThemedText style={styles.empty}>No savings goals set.</ThemedText>
+            ) : (
+              childGoals.map((goal) => {
+                const pct = safeGoalPct(child.points, goal.targetPoints);
+                const reached = goalReached(child.points, goal.targetPoints);
+                const isArchived = goal.status === 'archived';
+                return (
+                  <View
+                    key={goal.id}
+                    style={[
+                      styles.goalCard,
+                      isArchived && styles.goalCardArchived,
+                      {
+                        borderColor: isArchived
+                          ? textColor + '22'
+                          : reached
+                            ? '#38a16988'
+                            : tintColor + '44',
+                      },
+                    ]}
+                  >
+                    <View style={styles.goalHeader}>
+                      <ThemedText style={[styles.goalTitle, isArchived && styles.dimText]}>
+                        {reached && !isArchived ? '🎉 ' : isArchived ? '' : '🎯 '}
+                        {goal.title}
+                      </ThemedText>
+                      <ThemedText
+                        style={[
+                          styles.goalPct,
+                          isArchived && styles.dimText,
+                          { color: isArchived ? undefined : reached ? '#38a169' : tintColor },
+                        ]}
+                      >
+                        {isArchived ? safeTargetDisplay(goal.targetPoints) : `${pct}%`}
+                      </ThemedText>
+                    </View>
+                    {!isArchived ? (
+                      <>
+                        <ThemedText style={styles.goalMeta}>
+                          {child.points} / {safeTargetDisplay(goal.targetPoints)}
+                        </ThemedText>
+                        <View style={styles.progressTrack}>
+                          {pct > 0 ? (
+                            <View
+                              style={[
+                                styles.progressFill,
+                                {
+                                  flex: pct,
+                                  backgroundColor: reached ? '#38a169' : tintColor,
+                                },
+                              ]}
+                            />
+                          ) : null}
+                          {pct < 100 ? <View style={{ flex: 100 - pct }} /> : null}
+                        </View>
+                        {reached ? (
+                          <ThemedText style={styles.reachedLabel}>Goal reached! 🎊</ThemedText>
+                        ) : null}
+                      </>
+                    ) : (
+                      <ThemedText style={[styles.goalMeta, styles.dimText]}>Archived</ThemedText>
+                    )}
+                  </View>
+                );
+              })
+            )}
+
             {/* Lesson Progress */}
             <ThemedText type="subtitle" style={[styles.sectionTitle, styles.sectionTitleSpaced]}>
               Lesson Progress
@@ -305,4 +410,24 @@ const styles = StyleSheet.create({
   error: { color: '#e53e3e', marginBottom: 8 },
   loader: { marginVertical: 24 },
   empty: { opacity: 0.6, marginBottom: 12 },
+
+  // Goals
+  goalCard: { borderWidth: 1, borderRadius: 10, padding: 14, marginBottom: 10 },
+  goalCardArchived: { opacity: 0.6 },
+  goalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  goalTitle: { fontSize: 15, fontWeight: '600', flex: 1, marginRight: 8 },
+  goalPct: { fontSize: 13, fontWeight: '700' },
+  goalMeta: { fontSize: 13, opacity: 0.7, marginTop: 4 },
+  progressTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#E2E8F0',
+    flexDirection: 'row',
+    overflow: 'hidden',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  progressFill: { borderRadius: 4 },
+  reachedLabel: { color: '#38a169', fontSize: 13, fontWeight: '600', marginTop: 4 },
+  dimText: { opacity: 0.5 },
 });

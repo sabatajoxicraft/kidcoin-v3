@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
@@ -10,7 +10,8 @@ import { useFamily } from '@/contexts/family-context';
 import { useAuth } from '@/hooks/use-auth';
 import { useTask } from '@/hooks/use-task';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import type { EvidenceDraft } from '@/src/types';
+import { safeGoalPct, subscribeChildSavingsGoals } from '@/lib/goal-service';
+import type { EvidenceDraft, SavingsGoal } from '@/src/types';
 
 function isPositiveIntegerString(value: string): boolean {
   return /^[1-9]\d*$/.test(value);
@@ -36,6 +37,7 @@ export default function ChildDashboard() {
   const [payoutNote, setPayoutNote] = useState('');
   const [evidenceDrafts, setEvidenceDrafts] = useState<Record<string, EvidenceDraft>>({});
   const [pickerErrors, setPickerErrors] = useState<Record<string, string>>({});
+  const [activeGoals, setActiveGoals] = useState<SavingsGoal[]>([]);
 
   const displayChild = activeChild ?? children.find((child) => child.id === userProfile?.id);
   const currentPoints = displayChild?.points ?? 0;
@@ -45,6 +47,20 @@ export default function ChildDashboard() {
   const assignedTasks = tasks.filter((task) => task.status === 'assigned');
   const returnedTasks = tasks.filter((task) => task.status === 'returned');
   const recentTransactions = transactions.slice(0, 5);
+
+  const familyId = displayChild?.familyId ?? family?.id ?? '';
+  const childId = displayChild?.id ?? '';
+
+  useEffect(() => {
+    if (!familyId || !childId) return;
+    const unsub = subscribeChildSavingsGoals(
+      familyId,
+      childId,
+      (goals) => setActiveGoals(goals.filter((g) => g.status === 'active')),
+      () => undefined,
+    );
+    return unsub;
+  }, [familyId, childId]);
 
   const parsedPayoutPoints = isPositiveIntegerString(payoutPoints) ? Number(payoutPoints) : NaN;
   const isPayoutFormInvalid =
@@ -152,6 +168,41 @@ export default function ChildDashboard() {
         >
           <ThemedText style={styles.lessonsButtonText}>📚 Financial Lessons</ThemedText>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.goalsButton, { backgroundColor: tintColor }]}
+          onPress={() => router.push('/(child)/goals')}
+        >
+          <ThemedText style={styles.goalsButtonText}>🎯 My Savings Goals</ThemedText>
+        </TouchableOpacity>
+
+        <View style={[styles.goalsCompact, { borderColor: tintColor + '44' }]}>
+          {activeGoals.length > 0 ? (
+            <>
+              <ThemedText style={styles.goalsCompactLabel}>
+                {activeGoals.length} active {activeGoals.length === 1 ? 'goal' : 'goals'}
+              </ThemedText>
+              {(() => {
+                const top = activeGoals.reduce((best, g) =>
+                  safeGoalPct(currentPoints, g.targetPoints) > safeGoalPct(currentPoints, best.targetPoints) ? g : best,
+                activeGoals[0]);
+                const pct = safeGoalPct(currentPoints, top.targetPoints);
+                return (
+                  <ThemedText style={styles.goalsCompactProgress}>
+                    {top.title}: {pct}%
+                  </ThemedText>
+                );
+              })()}
+            </>
+          ) : (
+            <>
+              <ThemedText style={styles.goalsCompactLabel}>No active goals yet</ThemedText>
+              <ThemedText style={styles.goalsCompactProgress}>
+                Tap &quot;My Savings Goals&quot; to set your first goal 🎯
+              </ThemedText>
+            </>
+          )}
+        </View>
 
         {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
         {loading ? <ActivityIndicator color={tintColor} style={styles.loader} /> : null}
@@ -367,6 +418,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   lessonsButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  goalsButton: {
+    borderRadius: 8,
+    alignItems: 'center' as const,
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  goalsButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  goalsCompact: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  goalsCompactLabel: { fontSize: 14, fontWeight: '600', opacity: 0.85 },
+  goalsCompactProgress: { fontSize: 13, opacity: 0.65, marginTop: 2 },
   error: { color: '#e53e3e', marginBottom: 8 },
   loader: { marginBottom: 8 },
   sectionTitle: { marginTop: 12, marginBottom: 8 },
