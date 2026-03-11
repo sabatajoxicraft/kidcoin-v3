@@ -79,6 +79,17 @@ export interface Task {
   updatedAt: Date;
 }
 
+export interface TaskTemplate {
+  id: string;
+  ageGroup: AgeGroup;
+  category: string;
+  title: string;
+  description: string;
+  suggestedPoints: number;
+  estimatedTime: string;
+  parentTip: string;
+}
+
 export interface PointTransaction {
   id: string;
   familyId: string;

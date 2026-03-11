@@ -61,6 +61,13 @@ export default function ParentDashboard() {
 
       <TouchableOpacity
         style={[styles.outlineButton, { borderColor: textColor + '44' }]}
+        onPress={() => router.push('/(parent)/task-templates')}
+      >
+        <ThemedText style={styles.outlineButtonText}>Task Templates</ThemedText>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.outlineButton, { borderColor: textColor + '44' }]}
         onPress={() => router.push('/(parent)/tasks')}
       >
         <ThemedText style={styles.outlineButtonText}>Review Tasks</ThemedText>
