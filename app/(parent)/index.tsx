@@ -82,6 +82,13 @@ export default function ParentDashboard() {
 
       <TouchableOpacity
         style={[styles.outlineButton, { borderColor: textColor + '44' }]}
+        onPress={() => router.push('/(parent)/reporting')}
+      >
+        <ThemedText style={styles.outlineButtonText}>📊 Analytics</ThemedText>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.outlineButton, { borderColor: textColor + '44' }]}
         onPress={() => router.push('/(parent)/announcements')}
       >
         <ThemedText style={styles.outlineButtonText}>📢 Announcements</ThemedText>
