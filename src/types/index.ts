@@ -158,6 +158,22 @@ export interface SavingsGoal {
   archivedAt?: Date;
 }
 
+// ─── Family Announcements ─────────────────────────────────────
+
+export type AnnouncementStatus = 'active' | 'archived';
+
+export interface Announcement {
+  id: string;
+  familyId: string;
+  title: string;
+  body: string;
+  status: AnnouncementStatus;
+  createdByParentId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  archivedAt?: Date;
+}
+
 export type PayoutRequestStatus = 'pending' | 'approved' | 'rejected';
 
 export interface PayoutRequest {

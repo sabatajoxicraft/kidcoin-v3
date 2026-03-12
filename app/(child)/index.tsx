@@ -11,7 +11,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { useTask } from '@/hooks/use-task';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { safeGoalPct, subscribeChildSavingsGoals } from '@/lib/goal-service';
-import type { EvidenceDraft, SavingsGoal } from '@/src/types';
+import { subscribeActiveAnnouncements } from '@/lib/announcement-service';
+import type { Announcement, EvidenceDraft, SavingsGoal } from '@/src/types';
 
 function isPositiveIntegerString(value: string): boolean {
   return /^[1-9]\d*$/.test(value);
@@ -38,6 +39,7 @@ export default function ChildDashboard() {
   const [evidenceDrafts, setEvidenceDrafts] = useState<Record<string, EvidenceDraft>>({});
   const [pickerErrors, setPickerErrors] = useState<Record<string, string>>({});
   const [activeGoals, setActiveGoals] = useState<SavingsGoal[]>([]);
+  const [activeAnnouncements, setActiveAnnouncements] = useState<Announcement[]>([]);
 
   const displayChild = activeChild ?? children.find((child) => child.id === userProfile?.id);
   const currentPoints = displayChild?.points ?? 0;
@@ -61,6 +63,16 @@ export default function ChildDashboard() {
     );
     return unsub;
   }, [familyId, childId]);
+
+  useEffect(() => {
+    if (!familyId) return;
+    const unsub = subscribeActiveAnnouncements(
+      familyId,
+      (data) => setActiveAnnouncements(data),
+      () => undefined,
+    );
+    return unsub;
+  }, [familyId]);
 
   const parsedPayoutPoints = isPositiveIntegerString(payoutPoints) ? Number(payoutPoints) : NaN;
   const isPayoutFormInvalid =
@@ -203,6 +215,33 @@ export default function ChildDashboard() {
             </>
           )}
         </View>
+
+        {/* Announcements compact card */}
+        <TouchableOpacity
+          style={[styles.announcementsCompact, { borderColor: tintColor + '44' }]}
+          onPress={() => router.push('/(child)/announcements')}
+        >
+          {activeAnnouncements.length > 0 ? (
+            <>
+              <ThemedText style={styles.announcementsCompactLabel}>
+                📢 {activeAnnouncements[0].title}
+              </ThemedText>
+              <ThemedText style={styles.announcementsCompactBody} numberOfLines={2}>
+                {activeAnnouncements[0].body}
+              </ThemedText>
+              {activeAnnouncements.length > 1 && (
+                <ThemedText style={styles.announcementsCompactMore}>
+                  +{activeAnnouncements.length - 1} more announcement{activeAnnouncements.length > 2 ? 's' : ''}
+                </ThemedText>
+              )}
+            </>
+          ) : (
+            <>
+              <ThemedText style={styles.announcementsCompactLabel}>📢 Announcements</ThemedText>
+              <ThemedText style={styles.announcementsCompactBody}>No announcements yet.</ThemedText>
+            </>
+          )}
+        </TouchableOpacity>
 
         {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
         {loading ? <ActivityIndicator color={tintColor} style={styles.loader} /> : null}
@@ -433,6 +472,15 @@ const styles = StyleSheet.create({
   },
   goalsCompactLabel: { fontSize: 14, fontWeight: '600', opacity: 0.85 },
   goalsCompactProgress: { fontSize: 13, opacity: 0.65, marginTop: 2 },
+  announcementsCompact: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  announcementsCompactLabel: { fontSize: 14, fontWeight: '600', opacity: 0.85, marginBottom: 2 },
+  announcementsCompactBody: { fontSize: 13, opacity: 0.65, lineHeight: 18 },
+  announcementsCompactMore: { fontSize: 12, opacity: 0.5, marginTop: 4 },
   error: { color: '#e53e3e', marginBottom: 8 },
   loader: { marginBottom: 8 },
   sectionTitle: { marginTop: 12, marginBottom: 8 },
