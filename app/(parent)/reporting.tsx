@@ -8,6 +8,7 @@ import { useFamily } from '@/contexts/family-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { subscribeFamilyTasks } from '@/lib/task-service';
 import { subscribeFamilyPayoutRequests } from '@/lib/payout-service';
+import { formatPointsAsMoney } from '@/lib/currency';
 import {
   subscribeFamilyTransactions,
   calculateSpendingMetrics,
@@ -19,13 +20,16 @@ import {
   type ChildSpendingMetrics,
   type ChildTaskTrends,
 } from '@/lib/reporting-service';
-import type { PointTransaction, Task, PayoutRequest } from '@/src/types';
+import type { CurrencyCode, PointTransaction, Task, PayoutRequest } from '@/src/types';
 
 export default function ReportingScreen() {
   const { family, children } = useFamily();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tintColor = useThemeColor({}, 'tint');
+
+  const currencyCode: CurrencyCode = family?.settings?.currencyCode ?? 'ZAR';
+  const conversionRate = family?.settings?.pointsConversionRate ?? 0.1;
 
   const [transactions, setTransactions] = useState<PointTransaction[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -102,10 +106,10 @@ export default function ReportingScreen() {
             {/* Family Overview */}
             <ThemedText style={styles.sectionLabel}>Family Overview</ThemedText>
             <View style={[styles.card, { borderColor: tintColor + '44' }]}>
-              <Row label="Total Family Balance" value={`${spending.totalBalance} pts`} />
-              <Row label="Total Earned" value={`${spending.totalEarned} pts`} />
-              <Row label="Total Spent (Payouts)" value={`${spending.totalSpent} pts`} />
-              <Row label="Pending Payout Points" value={`${pendingPayoutPoints} pts`} />
+              <Row label="Total Family Balance" value={`${spending.totalBalance} pts`} subValue={formatPointsAsMoney(spending.totalBalance, conversionRate, currencyCode)} />
+              <Row label="Total Earned" value={`${spending.totalEarned} pts`} subValue={formatPointsAsMoney(spending.totalEarned, conversionRate, currencyCode)} />
+              <Row label="Total Spent (Payouts)" value={`${spending.totalSpent} pts`} subValue={formatPointsAsMoney(spending.totalSpent, conversionRate, currencyCode)} />
+              <Row label="Pending Payout Points" value={`${pendingPayoutPoints} pts`} subValue={formatPointsAsMoney(pendingPayoutPoints, conversionRate, currencyCode)} />
               <View style={styles.divider} />
               <ThemedText style={styles.subLabel}>Task Summary</ThemedText>
               <Row label="Approved" value={String(taskMetrics.approved)} />
@@ -125,9 +129,9 @@ export default function ReportingScreen() {
                   return (
                     <View key={child.id} style={[styles.card, { borderColor: tintColor + '44' }]}>
                       <ThemedText style={styles.cardTitle}>{child.displayName}</ThemedText>
-                      <Row label="Current Balance" value={`${child.points ?? 0} pts`} />
-                      <Row label="Total Earned" value={`${s.earned} pts`} />
-                      <Row label="Total Spent" value={`${s.spent} pts`} />
+                      <Row label="Current Balance" value={`${child.points ?? 0} pts`} subValue={formatPointsAsMoney(child.points ?? 0, conversionRate, currencyCode)} />
+                      <Row label="Total Earned" value={`${s.earned} pts`} subValue={formatPointsAsMoney(s.earned, conversionRate, currencyCode)} />
+                      <Row label="Total Spent" value={`${s.spent} pts`} subValue={formatPointsAsMoney(s.spent, conversionRate, currencyCode)} />
                     </View>
                   );
                 })}
@@ -167,11 +171,14 @@ export default function ReportingScreen() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, subValue }: { label: string; value: string; subValue?: string }) {
   return (
     <View style={styles.row}>
       <ThemedText style={styles.rowLabel}>{label}</ThemedText>
-      <ThemedText style={styles.rowValue}>{value}</ThemedText>
+      <View style={styles.rowRight}>
+        <ThemedText style={styles.rowValue}>{value}</ThemedText>
+        {subValue ? <ThemedText style={styles.rowSubValue}>{subValue}</ThemedText> : null}
+      </View>
     </View>
   );
 }
@@ -204,11 +211,13 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 4,
   },
-  rowLabel: { fontSize: 14, opacity: 0.75 },
+  rowLabel: { fontSize: 14, opacity: 0.75, flex: 1 },
+  rowRight: { alignItems: 'flex-end' },
   rowValue: { fontSize: 14, fontWeight: '600' },
+  rowSubValue: { fontSize: 11, opacity: 0.55, marginTop: 1 },
   divider: { height: 1, opacity: 0.15, backgroundColor: '#888', marginVertical: 8 },
   errorText: { color: '#E53E3E', marginBottom: 12, fontSize: 14 },
   empty: { opacity: 0.5, textAlign: 'center', marginTop: 24 },

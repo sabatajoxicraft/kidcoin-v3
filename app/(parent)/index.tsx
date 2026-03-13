@@ -110,6 +110,13 @@ export default function ParentDashboard() {
 
       <TouchableOpacity
         style={[styles.outlineButton, { borderColor: textColor + '44' }]}
+        onPress={() => router.push('/(parent)/family-settings')}
+      >
+        <ThemedText style={styles.outlineButtonText}>⚙️ Family Settings</ThemedText>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.outlineButton, { borderColor: textColor + '44' }]}
         onPress={signOut}
       >
         <ThemedText style={styles.outlineButtonText}>Sign Out</ThemedText>

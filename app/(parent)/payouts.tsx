@@ -7,16 +7,20 @@ import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
 import { useTask } from '@/hooks/use-task';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import type { PayoutRequest } from '@/src/types';
+import { formatPointsAsMoney } from '@/lib/currency';
+import type { CurrencyCode, PayoutRequest } from '@/src/types';
 
 export default function ParentPayoutsScreen() {
   const { payoutRequests, loading, error, reviewPayoutRequest, refresh } = useTask();
-  const { children } = useFamily();
+  const { children, family } = useFamily();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tintColor = useThemeColor({}, 'tint');
   const textColor = useThemeColor({}, 'text');
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+
+  const currencyCode: CurrencyCode = family?.settings?.currencyCode ?? 'ZAR';
+  const conversionRate = family?.settings?.pointsConversionRate ?? 0.1;
 
   const childNames = children.reduce<Record<string, string>>((acc, child) => {
     acc[child.id] = child.displayName;
@@ -45,7 +49,9 @@ export default function ParentPayoutsScreen() {
       <ThemedText style={styles.cardTitle}>
         {childNames[request.childId] ?? 'Unknown child'}
       </ThemedText>
-      <ThemedText style={styles.meta}>{request.requestedPoints} pts requested</ThemedText>
+      <ThemedText style={styles.meta}>
+        {request.requestedPoints} pts · {formatPointsAsMoney(request.requestedPoints, conversionRate, currencyCode)}
+      </ThemedText>
       {request.requestNote ? (
         <ThemedText style={styles.note}>Note: {request.requestNote}</ThemedText>
       ) : null}
@@ -80,7 +86,9 @@ export default function ParentPayoutsScreen() {
       <ThemedText style={styles.cardTitle}>
         {childNames[request.childId] ?? 'Unknown child'}
       </ThemedText>
-      <ThemedText style={styles.meta}>{request.requestedPoints} pts • {request.status}</ThemedText>
+      <ThemedText style={styles.meta}>
+        {request.requestedPoints} pts · {formatPointsAsMoney(request.requestedPoints, conversionRate, currencyCode)} · {request.status}
+      </ThemedText>
       {request.requestNote ? (
         <ThemedText style={styles.note}>Request note: {request.requestNote}</ThemedText>
       ) : null}

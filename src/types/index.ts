@@ -1,15 +1,20 @@
 export type AgeGroup = 'junior' | 'standard' | 'teen'; // junior=6-9, standard=10-13, teen=14+
 
+export type CurrencyCode = 'ZAR' | 'USD' | 'EUR' | 'GBP';
+
+export interface FamilySettings {
+  pointsConversionRate: number;
+  minPayoutAmount: number;
+  requireParentApproval: boolean;
+  currencyCode?: CurrencyCode;
+}
+
 export interface Family {
   id: string;
   name: string;
   ownerId: string;
   createdAt: Date;
-  settings: {
-    pointsConversionRate: number;
-    minPayoutAmount: number;
-    requireParentApproval: boolean;
-  };
+  settings: FamilySettings;
 }
 
 export interface UserProfile {

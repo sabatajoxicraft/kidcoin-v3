@@ -1,13 +1,31 @@
 import { doc, getDoc, setDoc, collection, query, where, getDocs, onSnapshot, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
 import * as Crypto from 'expo-crypto';
 import { db } from '@/lib/firebase';
-import type { Family, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
+import type { Family, FamilySettings, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
+import { isSupportedCurrency } from '@/lib/currency';
+
+const DEFAULT_SETTINGS: Required<FamilySettings> = {
+  pointsConversionRate: 0.1,
+  minPayoutAmount: 50,
+  requireParentApproval: true,
+  currencyCode: 'ZAR',
+};
+
+function normalizeFamilySettings(raw: Partial<FamilySettings> | undefined): FamilySettings {
+  return {
+    pointsConversionRate: raw?.pointsConversionRate ?? DEFAULT_SETTINGS.pointsConversionRate,
+    minPayoutAmount: raw?.minPayoutAmount ?? DEFAULT_SETTINGS.minPayoutAmount,
+    requireParentApproval: raw?.requireParentApproval ?? DEFAULT_SETTINGS.requireParentApproval,
+    currencyCode: raw?.currencyCode ?? DEFAULT_SETTINGS.currencyCode,
+  };
+}
 
 export async function createFamily(
   ownerId: string,
   ownerEmail: string,
   ownerDisplayName: string,
   familyName: string,
+  currencyCode?: string,
 ): Promise<Family> {
   const familyRef = doc(collection(db, 'families'));
   const family: Family = {
@@ -15,11 +33,9 @@ export async function createFamily(
     name: familyName,
     ownerId,
     createdAt: new Date(),
-    settings: {
-      pointsConversionRate: 0.1,
-      minPayoutAmount: 50,
-      requireParentApproval: true,
-    },
+    settings: normalizeFamilySettings({
+      currencyCode: currencyCode && isSupportedCurrency(currencyCode) ? currencyCode : 'ZAR',
+    }),
   };
   await setDoc(familyRef, family);
   await setDoc(
@@ -35,6 +51,34 @@ export async function createFamily(
     { merge: true },
   );
   return family;
+}
+
+export async function updateFamilySettings(
+  familyId: string,
+  settings: Partial<FamilySettings>,
+): Promise<void> {
+  if (settings.currencyCode !== undefined && !isSupportedCurrency(settings.currencyCode)) {
+    throw new Error(`Unsupported currency: ${settings.currencyCode}`);
+  }
+  if (
+    settings.pointsConversionRate !== undefined &&
+    (!Number.isFinite(settings.pointsConversionRate) || settings.pointsConversionRate <= 0)
+  ) {
+    throw new Error('pointsConversionRate must be a finite number > 0');
+  }
+  if (
+    settings.minPayoutAmount !== undefined &&
+    (!Number.isInteger(settings.minPayoutAmount) || settings.minPayoutAmount < 0)
+  ) {
+    throw new Error('minPayoutAmount must be a non-negative integer');
+  }
+
+  const familyRef = doc(db, 'families', familyId);
+  const updates: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(settings)) {
+    updates[`settings.${key}`] = value;
+  }
+  await updateDoc(familyRef, updates);
 }
 
 export async function addChild(
@@ -68,8 +112,9 @@ export async function getFamilyWithChildren(
 
   const data = familySnap.data();
   const family: Family = {
-    ...(data as Omit<Family, 'createdAt'>),
+    ...(data as Omit<Family, 'createdAt' | 'settings'>),
     createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt as Date),
+    settings: normalizeFamilySettings(data.settings as Partial<FamilySettings> | undefined),
   };
 
   const childrenSnap = await getDocs(
@@ -185,8 +230,9 @@ export function subscribeFamilyWithChildren(
       }
       const data = snap.data();
       latestFamily = {
-        ...(data as Omit<Family, 'createdAt'>),
+        ...(data as Omit<Family, 'createdAt' | 'settings'>),
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt as Date),
+        settings: normalizeFamilySettings(data.settings as Partial<FamilySettings> | undefined),
       };
       tryEmit();
     },

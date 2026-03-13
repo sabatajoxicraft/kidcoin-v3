@@ -12,7 +12,8 @@ import { useTask } from '@/hooks/use-task';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { safeGoalPct, subscribeChildSavingsGoals } from '@/lib/goal-service';
 import { subscribeActiveAnnouncements } from '@/lib/announcement-service';
-import type { Announcement, EvidenceDraft, SavingsGoal } from '@/src/types';
+import { formatPointsAsMoney } from '@/lib/currency';
+import type { Announcement, CurrencyCode, EvidenceDraft, SavingsGoal } from '@/src/types';
 
 function isPositiveIntegerString(value: string): boolean {
   return /^[1-9]\d*$/.test(value);
@@ -46,6 +47,8 @@ export default function ChildDashboard() {
   const pendingPayoutPoints = displayChild?.pendingPayoutPoints ?? 0;
   const availablePayoutPoints = Math.max(0, currentPoints - pendingPayoutPoints);
   const minPayoutAmount = family?.settings?.minPayoutAmount ?? 0;
+  const currencyCode: CurrencyCode = family?.settings?.currencyCode ?? 'ZAR';
+  const conversionRate = family?.settings?.pointsConversionRate ?? 0.1;
   const assignedTasks = tasks.filter((task) => task.status === 'assigned');
   const returnedTasks = tasks.filter((task) => task.status === 'returned');
   const recentTransactions = transactions.slice(0, 5);
@@ -385,7 +388,7 @@ export default function ChildDashboard() {
           onChangeText={setPayoutNote}
         />
         <ThemedText style={styles.payoutMeta}>
-          Available: {availablePayoutPoints} pts{pendingPayoutPoints > 0 ? ` · ${pendingPayoutPoints} pts pending` : ''}
+          Available: {availablePayoutPoints} pts ({formatPointsAsMoney(availablePayoutPoints, conversionRate, currencyCode)}){pendingPayoutPoints > 0 ? ` · ${pendingPayoutPoints} pts pending` : ''}
           {minPayoutAmount > 0 ? ` · Min: ${minPayoutAmount} pts` : ''}
         </ThemedText>
         <TouchableOpacity
@@ -401,7 +404,9 @@ export default function ChildDashboard() {
           payoutRequests.map((req) => (
             <View key={req.id} style={[styles.taskCard, { borderColor: textColor + '22' }]}>
               <ThemedText style={styles.taskTitle}>{req.requestedPoints} pts</ThemedText>
-              <ThemedText style={styles.meta}>Status: {req.status}</ThemedText>
+              <ThemedText style={styles.meta}>
+                {formatPointsAsMoney(req.requestedPoints, conversionRate, currencyCode)} · {req.status}
+              </ThemedText>
               {req.requestNote ? <ThemedText style={styles.feedback}>Note: {req.requestNote}</ThemedText> : null}
               {req.reviewNote ? <ThemedText style={styles.feedback}>Review: {req.reviewNote}</ThemedText> : null}
             </View>

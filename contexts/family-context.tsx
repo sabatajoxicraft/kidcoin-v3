@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import * as Crypto from 'expo-crypto';
 import { useAuth } from '@/hooks/use-auth';
-import type { Family, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
+import type { Family, FamilySettings, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
 import {
   createFamily as createFamilyService,
   addChild as addChildService,
@@ -10,6 +10,7 @@ import {
   subscribeFamilyWithChildren,
   subscribeUserProfile,
   updateChildWeeklyAllowance as updateChildWeeklyAllowanceService,
+  updateFamilySettings as updateFamilySettingsService,
 } from '@/lib/family-service';
 import {
   saveChildModeSession,
@@ -28,12 +29,13 @@ interface FamilyContextType {
   hasFamily: boolean;
   loading: boolean;
   error: string | null;
-  createFamily: (familyName: string) => Promise<void>;
+  createFamily: (familyName: string, currencyCode?: string) => Promise<void>;
   addChild: (displayName: string, ageGroup: AgeGroup, pin: string) => Promise<void>;
   refreshFamily: () => Promise<void>;
   enterChildMode: (childId: string, pin: string) => Promise<void>;
   exitChildMode: () => Promise<void>;
   updateChildWeeklyAllowance: (childId: string, weeklyAllowancePoints: number) => Promise<void>;
+  updateFamilySettings: (settings: Partial<FamilySettings>) => Promise<void>;
 }
 
 const FamilyContext = createContext<FamilyContextType | undefined>(undefined);
@@ -195,9 +197,9 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
     }
   };
 
-  const createFamily = async (familyName: string) => {
+  const createFamily = async (familyName: string, currencyCode?: string) => {
     if (!user) throw new Error('No user');
-    const f = await createFamilyService(user.uid, user.email ?? '', user.displayName ?? '', familyName);
+    const f = await createFamilyService(user.uid, user.email ?? '', user.displayName ?? '', familyName, currencyCode);
     // Eagerly update local state; the profile listener will also fire shortly.
     const profile = await getUserProfile(user.uid);
     setUserProfile(profile);
@@ -249,6 +251,15 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
     await updateChildWeeklyAllowanceService(userProfile.familyId, childId, weeklyAllowancePoints);
   };
 
+  const updateFamilySettings = async (settings: Partial<FamilySettings>) => {
+    if (!family?.id) throw new Error('No family');
+    if (userProfile?.role !== 'parent' || activeChildId !== null) {
+      throw new Error('Only parents can update family settings');
+    }
+    await updateFamilySettingsService(family.id, settings);
+    // State updates automatically via the subscribeFamilyWithChildren listener
+  };
+
   const hasFamily = userProfile?.familyId != null;
   const activeChild = useMemo(
     () => children.find((child) => child.id === activeChildId) ?? null,
@@ -276,6 +287,7 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
         enterChildMode,
         exitChildMode,
         updateChildWeeklyAllowance,
+        updateFamilySettings,
       }}
     >
       {reactChildren}
