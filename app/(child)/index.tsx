@@ -12,8 +12,8 @@ import { useTask } from '@/hooks/use-task';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { safeGoalPct, subscribeChildSavingsGoals } from '@/lib/goal-service';
 import { subscribeActiveAnnouncements } from '@/lib/announcement-service';
-import { formatPointsAsMoney } from '@/lib/currency';
-import type { Announcement, CurrencyCode, EvidenceDraft, SavingsGoal } from '@/src/types';
+import { formatPointsAsMoney, useDeviceCurrency } from '@/lib/currency';
+import type { Announcement, EvidenceDraft, SavingsGoal } from '@/src/types';
 
 function isPositiveIntegerString(value: string): boolean {
   return /^[1-9]\d*$/.test(value);
@@ -47,7 +47,7 @@ export default function ChildDashboard() {
   const pendingPayoutPoints = displayChild?.pendingPayoutPoints ?? 0;
   const availablePayoutPoints = Math.max(0, currentPoints - pendingPayoutPoints);
   const minPayoutAmount = family?.settings?.minPayoutAmount ?? 0;
-  const currencyCode: CurrencyCode = family?.settings?.currencyCode ?? 'ZAR';
+  const currencyCode = useDeviceCurrency();
   const conversionRate = family?.settings?.pointsConversionRate ?? 0.1;
   const assignedTasks = tasks.filter((task) => task.status === 'assigned');
   const returnedTasks = tasks.filter((task) => task.status === 'returned');

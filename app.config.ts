@@ -7,6 +7,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: IS_CLONE ? 'KidCoin Clone' : (config.name ?? 'kidcoin-v3'),
   slug: config.slug ?? 'kidcoin-v3',
   scheme: IS_CLONE ? 'kidcoinv3clone' : (config.scheme ?? 'kidcoinv3'),
+  plugins: [
+    ...(Array.isArray(config.plugins) ? config.plugins : []),
+    'expo-localization',
+  ],
   android: {
     ...config.android,
     package: IS_CLONE ? 'com.kidcoin.v3.clone' : (config.android?.package ?? 'com.kidcoin.v3'),

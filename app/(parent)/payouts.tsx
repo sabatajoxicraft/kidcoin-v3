@@ -7,8 +7,8 @@ import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
 import { useTask } from '@/hooks/use-task';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { formatPointsAsMoney } from '@/lib/currency';
-import type { CurrencyCode, PayoutRequest } from '@/src/types';
+import { formatPointsAsMoney, useDeviceCurrency } from '@/lib/currency';
+import type { PayoutRequest } from '@/src/types';
 
 export default function ParentPayoutsScreen() {
   const { payoutRequests, loading, error, reviewPayoutRequest, refresh } = useTask();
@@ -19,7 +19,7 @@ export default function ParentPayoutsScreen() {
   const textColor = useThemeColor({}, 'text');
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
 
-  const currencyCode: CurrencyCode = family?.settings?.currencyCode ?? 'ZAR';
+  const currencyCode = useDeviceCurrency();
   const conversionRate = family?.settings?.pointsConversionRate ?? 0.1;
 
   const childNames = children.reduce<Record<string, string>>((acc, child) => {

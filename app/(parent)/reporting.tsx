@@ -8,7 +8,7 @@ import { useFamily } from '@/contexts/family-context';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { subscribeFamilyTasks } from '@/lib/task-service';
 import { subscribeFamilyPayoutRequests } from '@/lib/payout-service';
-import { formatPointsAsMoney } from '@/lib/currency';
+import { formatPointsAsMoney, useDeviceCurrency } from '@/lib/currency';
 import {
   subscribeFamilyTransactions,
   calculateSpendingMetrics,
@@ -20,7 +20,7 @@ import {
   type ChildSpendingMetrics,
   type ChildTaskTrends,
 } from '@/lib/reporting-service';
-import type { CurrencyCode, PointTransaction, Task, PayoutRequest } from '@/src/types';
+import type { PointTransaction, Task, PayoutRequest } from '@/src/types';
 
 export default function ReportingScreen() {
   const { family, children } = useFamily();
@@ -28,7 +28,7 @@ export default function ReportingScreen() {
   const insets = useSafeAreaInsets();
   const tintColor = useThemeColor({}, 'tint');
 
-  const currencyCode: CurrencyCode = family?.settings?.currencyCode ?? 'ZAR';
+  const currencyCode = useDeviceCurrency();
   const conversionRate = family?.settings?.pointsConversionRate ?? 0.1;
 
   const [transactions, setTransactions] = useState<PointTransaction[]>([]);
