@@ -5,9 +5,10 @@ import { Image } from 'expo-image';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
+import { normalizeEvidenceSet } from '@/lib/evidence-service';
 import { useTask } from '@/hooks/use-task';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import type { Task } from '@/src/types';
+import type { Task, TaskEvidence } from '@/src/types';
 
 export default function ParentTasksScreen() {
   const { tasks, loading, error, reviewTask, refresh } = useTask();
@@ -44,25 +45,56 @@ export default function ParentTasksScreen() {
       <ThemedText style={styles.meta}>Status: {task.status}</ThemedText>
       {task.feedback ? <ThemedText style={styles.feedback}>Feedback: {task.feedback}</ThemedText> : null}
 
-      {task.evidence ? (
-        <View style={styles.evidenceContainer}>
-          <Image source={{ uri: task.evidence.downloadUrl }} style={styles.evidenceImage} contentFit="cover" />
-          <ThemedText style={styles.evidenceMeta}>
-            {task.evidence.fileName ?? 'file'}
-            {task.evidence.fileSize != null ? ` · ${(task.evidence.fileSize / 1024).toFixed(0)} KB` : ''}
-            {task.evidence.uploadedAt instanceof Date
-              ? ` · ${task.evidence.uploadedAt.toLocaleDateString()}`
-              : ''}
-          </ThemedText>
-          {task.submittedAt instanceof Date &&
-          task.evidence.uploadedAt instanceof Date &&
-          task.evidence.uploadedAt.getTime() < task.submittedAt.getTime() - 60_000 ? (
-            <ThemedText style={styles.staleEvidenceNote}>
-              ⚠️ Previous evidence — uploaded before this submission
+      {(() => {
+        const normalized = normalizeEvidenceSet(task);
+        if (!normalized) return null;
+
+        const isLegacyOnly = !task.evidenceSet;
+        const renderItem = (item: TaskEvidence, isStale: boolean) => (
+          <View key={item.storagePath} style={styles.evidenceContainer}>
+            <Image source={{ uri: item.downloadUrl }} style={styles.evidenceImage} contentFit="cover" />
+            <ThemedText style={styles.evidenceMeta}>
+              {item.fileName ?? 'file'}
+              {item.fileSize != null ? ` · ${(item.fileSize / 1024).toFixed(0)} KB` : ''}
+              {item.uploadedAt instanceof Date ? ` · ${item.uploadedAt.toLocaleDateString()}` : ''}
             </ThemedText>
-          ) : null}
-        </View>
-      ) : null}
+            {isStale ? (
+              <ThemedText style={styles.staleEvidenceNote}>
+                ⚠️ Previous evidence — uploaded before this submission
+              </ThemedText>
+            ) : null}
+          </View>
+        );
+
+        if (isLegacyOnly) {
+          // v1 legacy path — single evidence item, preserve stale warning
+          const item = normalized.after[0];
+          if (!item) return null;
+          const isStale =
+            task.submittedAt instanceof Date &&
+            item.uploadedAt instanceof Date &&
+            item.uploadedAt.getTime() < task.submittedAt.getTime() - 60_000;
+          return renderItem(item, isStale);
+        }
+
+        // v2 path — render before/after buckets
+        return (
+          <>
+            {normalized.before.length > 0 ? (
+              <>
+                <ThemedText style={styles.evidenceBucketLabel}>Before</ThemedText>
+                {normalized.before.map((item) => renderItem(item, false))}
+              </>
+            ) : null}
+            {normalized.after.length > 0 ? (
+              <>
+                <ThemedText style={styles.evidenceBucketLabel}>After</ThemedText>
+                {normalized.after.map((item) => renderItem(item, false))}
+              </>
+            ) : null}
+          </>
+        );
+      })()}
 
       {showActions ? (
         <View style={styles.actionRow}>
@@ -185,5 +217,6 @@ const styles = StyleSheet.create({
   evidenceContainer: { marginTop: 8, borderRadius: 8, overflow: 'hidden' },
   evidenceImage: { width: '100%', height: 200, borderRadius: 8 },
   evidenceMeta: { fontSize: 12, opacity: 0.6, marginTop: 4 },
+  evidenceBucketLabel: { fontSize: 12, fontWeight: '600', opacity: 0.7, marginTop: 8, marginBottom: 2 },
   staleEvidenceNote: { fontSize: 12, color: '#b7791f', marginTop: 2 },
 });

@@ -8,6 +8,7 @@ import {
   getFamilyTasks,
   reviewTask as reviewTaskService,
   submitTask as submitTaskService,
+  submitTaskWithSet as submitTaskWithSetService,
   subscribeChildTasks,
   subscribeChildTransactions,
   subscribeFamilyTasks,
@@ -20,8 +21,9 @@ import {
   subscribeChildPayoutRequests,
   subscribeFamilyPayoutRequests,
 } from '@/lib/payout-service';
-import type { EvidenceDraft, PayoutRequest, PointTransaction, Task, TaskEvidence } from '@/src/types';
-import { deleteTaskEvidence, uploadTaskEvidence } from '@/lib/evidence-service';
+import type { EvidenceDraft, EvidenceSetDraft, PayoutRequest, PointTransaction, Task, TaskEvidence, TaskEvidenceSet } from '@/src/types';
+import { deleteEvidenceAssets, deleteTaskEvidence, uploadTaskEvidence, uploadTaskEvidenceV2 } from '@/lib/evidence-service';
+export { normalizeEvidenceSet } from '@/lib/evidence-service';
 
 export interface CreateTaskInput {
   title: string;
@@ -38,6 +40,8 @@ interface TaskContextType {
   error: string | null;
   createTask: (input: CreateTaskInput) => Promise<void>;
   submitTask: (taskId: string, evidenceDraft?: EvidenceDraft) => Promise<void>;
+  /** v2 submit: uploads before/after draft buckets and writes an evidenceSet to Firestore. */
+  submitTaskV2: (taskId: string, evidenceSetDraft?: EvidenceSetDraft) => Promise<void>;
   reviewTask: (taskId: string, decision: 'approved' | 'returned', feedback?: string) => Promise<void>;
   requestPayout: (requestedPoints: number, requestNote?: string) => Promise<void>;
   reviewPayoutRequest: (requestId: string, decision: 'approved' | 'rejected', reviewNote?: string) => Promise<void>;
@@ -308,6 +312,105 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const submitTaskV2 = async (taskId: string, evidenceSetDraft?: EvidenceSetDraft) => {
+    const scopedProfile = effectiveUserProfile;
+    if (!scopedProfile?.familyId) throw new Error('Family context is not ready');
+    if (!user) throw new Error('Authenticated user not found');
+    if (effectiveRole !== 'child') throw new Error('Only children can submit tasks');
+
+    await runWithState(async () => {
+      const childId = scopedProfile.id;
+      if (!childId) throw new Error('Child profile not found');
+      const familyId = scopedProfile.familyId;
+      if (!familyId) throw new Error('Family context is not ready');
+
+      const hasDrafts =
+        evidenceSetDraft &&
+        (evidenceSetDraft.before.length > 0 || evidenceSetDraft.after.length > 0);
+
+      if (!hasDrafts) {
+        // No evidence — fall back to plain submit (preserves existing behavior).
+        await submitTaskService(taskId, childId);
+        return;
+      }
+
+      // Capture prior after-paths so superseded assets can be cleaned up after
+      // a successful resubmission. before-assets are always preserved per spec.
+      // Also include legacy v1 single-image path so it isn't orphaned on v1→v2 resubmit.
+      const priorTask = tasks.find((t) => t.id === taskId);
+      const priorAfterPaths: string[] = [
+        ...(priorTask?.evidenceSet?.after.map((e) => e.storagePath) ?? []),
+        ...(priorTask?.evidence?.storagePath ? [priorTask.evidence.storagePath] : []),
+      ];
+
+      // Use Promise.allSettled so we can track which individual uploads succeeded
+      // and clean them up if any upload in the batch fails before Firestore write.
+      const beforeCount = evidenceSetDraft.before.length;
+      const uploadResults = await Promise.allSettled([
+        ...evidenceSetDraft.before.map((draft) =>
+          uploadTaskEvidenceV2(familyId, taskId, childId, 'before', draft),
+        ),
+        ...evidenceSetDraft.after.map((draft) =>
+          uploadTaskEvidenceV2(familyId, taskId, childId, 'after', draft),
+        ),
+      ]);
+
+      const successfulPaths: string[] = [];
+      const uploadFailures: string[] = [];
+      for (const result of uploadResults) {
+        if (result.status === 'fulfilled') {
+          successfulPaths.push(result.value.storagePath);
+        } else {
+          uploadFailures.push(result.reason instanceof Error ? result.reason.message : String(result.reason));
+        }
+      }
+
+      if (uploadFailures.length > 0) {
+        try {
+          await deleteEvidenceAssets(successfulPaths);
+        } catch (cleanupError) {
+          throw new Error(
+            `Evidence upload failed: ${uploadFailures.join('; ')}. ` +
+            `Cleanup of ${successfulPaths.length} uploaded asset(s) also failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+          );
+        }
+        throw new Error(`Evidence upload failed: ${uploadFailures.join('; ')}`);
+      }
+
+      // All uploads succeeded — reconstruct typed before/after arrays from results.
+      const beforeAssets = (uploadResults.slice(0, beforeCount) as PromiseFulfilledResult<TaskEvidence>[]).map((r) => r.value);
+      const afterAssets = (uploadResults.slice(beforeCount) as PromiseFulfilledResult<TaskEvidence>[]).map((r) => r.value);
+
+      const allNewPaths = successfulPaths;
+      const evidenceSet: TaskEvidenceSet = { version: 2, before: beforeAssets, after: afterAssets };
+
+      try {
+        await submitTaskWithSetService(taskId, childId, evidenceSet);
+      } catch (submitError) {
+        // Upload succeeded but Firestore write failed — delete all newly uploaded assets.
+        try {
+          await deleteEvidenceAssets(allNewPaths);
+        } catch (cleanupError) {
+          throw new Error(
+            `Task submission failed: ${submitError instanceof Error ? submitError.message : String(submitError)}. ` +
+            `Evidence cleanup also failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`,
+          );
+        }
+        throw submitError;
+      }
+
+      // Firestore write succeeded. Delete superseded after-assets. Non-critical.
+      if (priorAfterPaths.length > 0) {
+        try {
+          await deleteEvidenceAssets(priorAfterPaths);
+        } catch (cleanupError) {
+          console.warn('[TaskContext] Failed to delete prior after-evidence after resubmission:', cleanupError);
+        }
+      }
+      // Listener handles task list update automatically
+    });
+  };
+
   const reviewTask = async (taskId: string, decision: 'approved' | 'returned', feedback?: string) => {
     if (!user || !userProfile?.familyId) throw new Error('Family context is not ready');
     if (userProfile.role !== 'parent' || effectiveRole !== 'parent') {
@@ -365,6 +468,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
         error,
         createTask,
         submitTask,
+        submitTaskV2,
         reviewTask,
         requestPayout,
         reviewPayoutRequest,

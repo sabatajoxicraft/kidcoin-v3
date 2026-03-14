@@ -9,11 +9,12 @@ import { ThemedView } from '@/components/themed-view';
 import { useFamily } from '@/contexts/family-context';
 import { useAuth } from '@/hooks/use-auth';
 import { useTask } from '@/hooks/use-task';
+import { normalizeEvidenceSet } from '@/lib/evidence-service';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { safeGoalPct, subscribeChildSavingsGoals } from '@/lib/goal-service';
 import { subscribeActiveAnnouncements } from '@/lib/announcement-service';
 import { formatPointsAsMoney, useDeviceCurrency } from '@/lib/currency';
-import type { Announcement, EvidenceDraft, SavingsGoal } from '@/src/types';
+import type { Announcement, EvidenceDraft, EvidenceSetDraft, SavingsGoal } from '@/src/types';
 import {
   DashboardCard,
   DashboardSectionHeader,
@@ -38,7 +39,7 @@ const EVIDENCE_PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
 export default function ChildDashboard() {
   const { signOut } = useAuth();
   const { userProfile, family, children, activeChild, exitChildMode } = useFamily();
-  const { tasks, transactions, payoutRequests, submitTask, requestPayout, refresh, loading, error } = useTask();
+  const { tasks, transactions, payoutRequests, submitTask, submitTaskV2, requestPayout, refresh, loading, error } = useTask();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tintColor = useThemeColor({}, 'tint');
@@ -46,7 +47,8 @@ export default function ChildDashboard() {
 
   const [payoutPoints, setPayoutPoints] = useState('');
   const [payoutNote, setPayoutNote] = useState('');
-  const [evidenceDrafts, setEvidenceDrafts] = useState<Record<string, EvidenceDraft>>({});
+  const [evidenceDrafts, setEvidenceDrafts] = useState<Record<string, EvidenceSetDraft>>({});
+  const [activeBuckets, setActiveBuckets] = useState<Record<string, 'before' | 'after'>>({});
   const [pickerErrors, setPickerErrors] = useState<Record<string, string>>({});
   const [activeGoals, setActiveGoals] = useState<SavingsGoal[]>([]);
   const [activeAnnouncements, setActiveAnnouncements] = useState<Announcement[]>([]);
@@ -99,7 +101,20 @@ export default function ChildDashboard() {
     });
   };
 
+  const MAX_PER_BUCKET = 4;
+
   const pickImage = async (taskId: string, source: 'camera' | 'gallery') => {
+    const bucket = activeBuckets[taskId] ?? 'after';
+    const current = evidenceDrafts[taskId]?.[bucket] ?? [];
+
+    if (current.length >= MAX_PER_BUCKET) {
+      setPickerErrors((prev) => ({
+        ...prev,
+        [taskId]: `Max ${MAX_PER_BUCKET} photos per bucket. Remove one first.`,
+      }));
+      return;
+    }
+
     try {
       const permResult = source === 'camera'
         ? await ImagePicker.requestCameraPermissionsAsync()
@@ -125,12 +140,48 @@ export default function ChildDashboard() {
       const mimeType = asset.mimeType ?? 'image/jpeg';
       const fileSize = asset.fileSize ?? 0;
 
-      setEvidenceDrafts((prev) => ({ ...prev, [taskId]: { localUri: uri, fileName, mimeType, fileSize } }));
+      if (!mimeType.startsWith('image/')) {
+        setPickerErrors((prev) => ({
+          ...prev,
+          [taskId]: `Only images are allowed (got ${mimeType}).`,
+        }));
+        return;
+      }
+      if (fileSize > 10 * 1024 * 1024) {
+        const mb = (fileSize / (1024 * 1024)).toFixed(1);
+        setPickerErrors((prev) => ({
+          ...prev,
+          [taskId]: `"${fileName}" is ${mb} MB. Maximum allowed size is 10 MB.`,
+        }));
+        return;
+      }
+
+      const newDraft: EvidenceDraft = { localUri: uri, fileName, mimeType, fileSize };
+      setEvidenceDrafts((prev) => {
+        const existing = prev[taskId] ?? { before: [], after: [] };
+        return {
+          ...prev,
+          [taskId]: { ...existing, [bucket]: [...existing[bucket], newDraft] },
+        };
+      });
       clearPickerError(taskId);
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to pick image.';
       setPickerErrors((prev) => ({ ...prev, [taskId]: message }));
     }
+  };
+
+  const removeDraftItem = (taskId: string, bucket: 'before' | 'after', index: number) => {
+    setEvidenceDrafts((prev) => {
+      const existing = prev[taskId] ?? { before: [], after: [] };
+      const updated = { ...existing, [bucket]: existing[bucket].filter((_, i) => i !== index) };
+      if (updated.before.length === 0 && updated.after.length === 0) {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      }
+      return { ...prev, [taskId]: updated };
+    });
   };
 
   const clearDraft = (taskId: string) => {
@@ -143,7 +194,13 @@ export default function ChildDashboard() {
 
   const handleSubmit = async (taskId: string) => {
     try {
-      await submitTask(taskId, evidenceDrafts[taskId]);
+      const draft = evidenceDrafts[taskId];
+      const hasDrafts = draft && (draft.before.length > 0 || draft.after.length > 0);
+      if (hasDrafts) {
+        await submitTaskV2(taskId, draft);
+      } else {
+        await submitTask(taskId);
+      }
       clearDraft(taskId);
       clearPickerError(taskId);
     } catch {
@@ -225,6 +282,25 @@ export default function ChildDashboard() {
               {task.description ? <ThemedText style={styles.taskDescription}>{task.description}</ThemedText> : null}
               <ThemedText style={styles.meta}>{task.points} pts</ThemedText>
 
+              {/* Bucket selector */}
+              <View style={styles.bucketSelector}>
+                {(['before', 'after'] as const).map((bucket) => {
+                  const isActive = (activeBuckets[task.id] ?? 'after') === bucket;
+                  const count = evidenceDrafts[task.id]?.[bucket]?.length ?? 0;
+                  return (
+                    <TouchableOpacity
+                      key={bucket}
+                      style={[styles.bucketTab, isActive && { borderColor: tintColor, backgroundColor: tintColor + '22' }]}
+                      onPress={() => setActiveBuckets((prev) => ({ ...prev, [task.id]: bucket }))}
+                    >
+                      <ThemedText style={[styles.bucketTabText, isActive && { color: tintColor }]}>
+                        {bucket === 'before' ? 'Before' : 'After'}{count > 0 ? ` (${count})` : ''}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
               <View style={styles.evidenceRow}>
                 <TouchableOpacity
                   style={[styles.evidenceButton, { borderColor: tintColor }]}
@@ -242,15 +318,23 @@ export default function ChildDashboard() {
                 </TouchableOpacity>
               </View>
 
-              {evidenceDrafts[task.id] ? (
-                <View style={styles.evidencePreview}>
-                  <Image source={{ uri: evidenceDrafts[task.id].localUri }} style={styles.evidenceImage} contentFit="cover" />
-                  <TouchableOpacity style={styles.removeButton} onPress={() => clearDraft(task.id)}>
-                    <ThemedText style={styles.removeButtonText}>✕</ThemedText>
-                  </TouchableOpacity>
-                  <ThemedText style={styles.evidenceLabel}>Evidence attached</ThemedText>
-                </View>
-              ) : null}
+              {(() => {
+                const bucket = activeBuckets[task.id] ?? 'after';
+                const items = evidenceDrafts[task.id]?.[bucket] ?? [];
+                if (items.length === 0) return null;
+                return (
+                  <View style={styles.thumbnailRow}>
+                    {items.map((item, idx) => (
+                      <View key={idx} style={styles.thumbnailWrap}>
+                        <Image source={{ uri: item.localUri }} style={styles.thumbnail} contentFit="cover" />
+                        <TouchableOpacity style={styles.removeThumbBtn} onPress={() => removeDraftItem(task.id, bucket, idx)}>
+                          <ThemedText style={styles.removeButtonText}>✕</ThemedText>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })()}
 
               {pickerErrors[task.id] ? <ThemedText style={styles.pickerError}>{pickerErrors[task.id]}</ThemedText> : null}
 
@@ -290,12 +374,50 @@ export default function ChildDashboard() {
             <ThemedText style={styles.meta}>{task.points} pts</ThemedText>
             {task.feedback ? <ThemedText style={styles.feedback}>{"Parent's note:"} {task.feedback}</ThemedText> : null}
 
-            {task.evidence ? (
-              <View style={styles.evidencePreview}>
-                <Image source={{ uri: task.evidence.downloadUrl }} style={styles.evidenceImage} contentFit="cover" />
-                <ThemedText style={styles.evidenceLabel}>Previous evidence</ThemedText>
-              </View>
-            ) : null}
+            {(() => {
+              const normalized = normalizeEvidenceSet(task);
+              if (!normalized) return null;
+              const allPrev = [...normalized.before, ...normalized.after];
+              if (allPrev.length === 0) return null;
+              return (
+                <View style={styles.prevEvidenceSection}>
+                  <ThemedText style={styles.prevEvidenceLabel}>Previous evidence</ThemedText>
+                  <View style={styles.thumbnailRow}>
+                    {normalized.before.map((e, i) => (
+                      <View key={`b${i}`} style={styles.thumbnailWrap}>
+                        <Image source={{ uri: e.downloadUrl }} style={styles.thumbnail} contentFit="cover" />
+                        <ThemedText style={styles.bucketPill}>B</ThemedText>
+                      </View>
+                    ))}
+                    {normalized.after.map((e, i) => (
+                      <View key={`a${i}`} style={styles.thumbnailWrap}>
+                        <Image source={{ uri: e.downloadUrl }} style={styles.thumbnail} contentFit="cover" />
+                        <ThemedText style={styles.bucketPill}>A</ThemedText>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              );
+            })()}
+
+            {/* Bucket selector */}
+            <View style={styles.bucketSelector}>
+              {(['before', 'after'] as const).map((bucket) => {
+                const isActive = (activeBuckets[task.id] ?? 'after') === bucket;
+                const count = evidenceDrafts[task.id]?.[bucket]?.length ?? 0;
+                return (
+                  <TouchableOpacity
+                    key={bucket}
+                    style={[styles.bucketTab, isActive && { borderColor: tintColor, backgroundColor: tintColor + '22' }]}
+                    onPress={() => setActiveBuckets((prev) => ({ ...prev, [task.id]: bucket }))}
+                  >
+                    <ThemedText style={[styles.bucketTabText, isActive && { color: tintColor }]}>
+                      {bucket === 'before' ? 'Before' : 'After'}{count > 0 ? ` (${count})` : ''}
+                    </ThemedText>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             <View style={styles.evidenceRow}>
               <TouchableOpacity
@@ -314,15 +436,23 @@ export default function ChildDashboard() {
               </TouchableOpacity>
             </View>
 
-            {evidenceDrafts[task.id] ? (
-              <View style={styles.evidencePreview}>
-                <Image source={{ uri: evidenceDrafts[task.id].localUri }} style={styles.evidenceImage} contentFit="cover" />
-                <TouchableOpacity style={styles.removeButton} onPress={() => clearDraft(task.id)}>
-                  <ThemedText style={styles.removeButtonText}>✕</ThemedText>
-                </TouchableOpacity>
-                <ThemedText style={styles.evidenceLabel}>New evidence attached</ThemedText>
-              </View>
-            ) : null}
+            {(() => {
+              const bucket = activeBuckets[task.id] ?? 'after';
+              const items = evidenceDrafts[task.id]?.[bucket] ?? [];
+              if (items.length === 0) return null;
+              return (
+                <View style={styles.thumbnailRow}>
+                  {items.map((item, idx) => (
+                    <View key={idx} style={styles.thumbnailWrap}>
+                      <Image source={{ uri: item.localUri }} style={styles.thumbnail} contentFit="cover" />
+                      <TouchableOpacity style={styles.removeThumbBtn} onPress={() => removeDraftItem(task.id, bucket, idx)}>
+                        <ThemedText style={styles.removeButtonText}>✕</ThemedText>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
 
             {pickerErrors[task.id] ? <ThemedText style={styles.pickerError}>{pickerErrors[task.id]}</ThemedText> : null}
 
@@ -514,4 +644,14 @@ const styles = StyleSheet.create({
   removeButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   evidenceLabel: { fontSize: 12, opacity: 0.65, marginTop: 4 },
   pickerError: { color: '#e53e3e', fontSize: 13, marginTop: 6 },
+  bucketSelector: { flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 2 },
+  bucketTab: { flex: 1, borderWidth: 1, borderColor: 'rgba(128,128,128,0.35)', borderRadius: 8, paddingVertical: 6, alignItems: 'center' },
+  bucketTabText: { fontSize: 13, fontWeight: '600', opacity: 0.75 },
+  thumbnailRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  thumbnailWrap: { position: 'relative', width: 72, height: 72 },
+  thumbnail: { width: 72, height: 72, borderRadius: 6 },
+  removeThumbBtn: { position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' },
+  prevEvidenceSection: { marginTop: 8 },
+  prevEvidenceLabel: { fontSize: 12, opacity: 0.55, marginBottom: 4 },
+  bucketPill: { position: 'absolute', bottom: 2, left: 2, fontSize: 9, fontWeight: '700', color: '#fff', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 4, paddingHorizontal: 3, paddingVertical: 1, overflow: 'hidden' },
 });

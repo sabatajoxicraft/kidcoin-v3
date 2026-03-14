@@ -58,11 +58,33 @@ export interface TaskEvidence {
   uploadedAt: Date;
 }
 
+/** v2 grouped evidence container. Max 4 assets per bucket. */
+export interface TaskEvidenceSet {
+  version: 2;
+  before: TaskEvidence[];
+  after: TaskEvidence[];
+}
+
+/**
+ * Normalized evidence read model — always safe for display regardless of
+ * whether the task carries legacy `evidence` or v2 `evidenceSet`.
+ */
+export interface NormalizedEvidenceSet {
+  before: TaskEvidence[];
+  after: TaskEvidence[];
+}
+
 export interface EvidenceDraft {
   localUri: string;
   fileName: string;
   mimeType: string;
   fileSize: number;
+}
+
+/** v2 draft for a child submission containing before and after buckets. */
+export interface EvidenceSetDraft {
+  before: EvidenceDraft[];
+  after: EvidenceDraft[];
 }
 
 export type TaskStatus = 'assigned' | 'submitted' | 'approved' | 'returned';
@@ -76,7 +98,10 @@ export interface Task {
   assignedToChildId: string;
   createdByParentId: string;
   status: TaskStatus;
+  /** Legacy v1 per-image evidence. Not mutated or removed on read. */
   evidence?: TaskEvidence;
+  /** v2 grouped before/after evidence set. Preferred over `evidence` when both exist. */
+  evidenceSet?: TaskEvidenceSet;
   feedback?: string;
   submittedAt?: Date;
   reviewedAt?: Date;

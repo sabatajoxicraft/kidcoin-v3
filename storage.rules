@@ -3,32 +3,49 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Family-scoped task evidence
-    // Path: families/{familyId}/tasks/{taskId}/evidence/{childId}/{fileName}
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isParentOfFamily(familyId) {
+      return isSignedIn() &&
+        firestore.get(
+          /databases/(default)/documents/families/$(familyId)
+        ).data.ownerId == request.auth.uid;
+    }
+
+    function isChildOfFamily(familyId, childId) {
+      return isSignedIn() &&
+        request.auth.uid == childId &&
+        firestore.get(
+          /databases/(default)/documents/users/$(childId)
+        ).data.familyId == familyId;
+    }
+
+    // Validates an evidence upload: image/* MIME only, max 10 MB per file.
+    function isValidEvidenceUpload() {
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    // Legacy v1 path — families/{familyId}/tasks/{taskId}/evidence/{childId}/{fileName}
     match /families/{familyId}/tasks/{taskId}/evidence/{childId}/{fileName} {
+      allow read: if isParentOfFamily(familyId) || isChildOfFamily(familyId, childId);
+      allow create, update: if
+        (isParentOfFamily(familyId) || isChildOfFamily(familyId, childId)) &&
+        isValidEvidenceUpload();
+      allow delete: if isParentOfFamily(familyId) || isChildOfFamily(familyId, childId);
+    }
 
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Caller is the parent/owner of this family
-      function isParentOfFamily() {
-        return isSignedIn() &&
-          firestore.get(
-            /databases/(default)/documents/families/$(familyId)
-          ).data.ownerId == request.auth.uid;
-      }
-
-      // Caller is the child whose evidence folder is being accessed
-      function isChildOfFamily() {
-        return isSignedIn() &&
-          request.auth.uid == childId &&
-          firestore.get(
-            /databases/(default)/documents/users/$(childId)
-          ).data.familyId == familyId;
-      }
-
-      allow read, write: if isParentOfFamily() || isChildOfFamily();
+    // v2 path — families/{familyId}/tasks/{taskId}/evidence/{childId}/{bucket}/{fileName}
+    // {bucket} is 'before' or 'after'
+    match /families/{familyId}/tasks/{taskId}/evidence/{childId}/{evidenceBucket}/{fileName} {
+      allow read: if isParentOfFamily(familyId) || isChildOfFamily(familyId, childId);
+      allow create, update: if
+        (isParentOfFamily(familyId) || isChildOfFamily(familyId, childId)) &&
+        evidenceBucket in ['before', 'after'] &&
+        isValidEvidenceUpload();
+      allow delete: if isParentOfFamily(familyId) || isChildOfFamily(familyId, childId);
     }
 
     // Deny everything else

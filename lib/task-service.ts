@@ -13,7 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { PointTransaction, Task, TaskEvidence } from '@/src/types';
+import type { PointTransaction, Task, TaskEvidence, TaskEvidenceSet } from '@/src/types';
 
 type UserRole = 'parent' | 'child';
 
@@ -40,14 +40,47 @@ function mapEvidence(raw: Record<string, unknown> | undefined): TaskEvidence | u
   };
 }
 
+function mapEvidenceItems(raw: unknown[]): TaskEvidence[] {
+  return raw
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+    .map((item) => ({
+      ...(item as Omit<TaskEvidence, 'uploadedAt'>),
+      uploadedAt: toDate(item.uploadedAt),
+    }));
+}
+
+/** Converts a TaskEvidence item to a plain Firestore-ready object with an explicit Timestamp. */
+function serializeEvidenceItem(item: TaskEvidence): Record<string, unknown> {
+  return { ...item, uploadedAt: Timestamp.fromDate(item.uploadedAt) };
+}
+
+/** Serializes a TaskEvidenceSet for Firestore, making all nested Date → Timestamp conversions explicit. */
+function serializeEvidenceSet(set: TaskEvidenceSet): Record<string, unknown> {
+  return {
+    version: set.version,
+    before: set.before.map(serializeEvidenceItem),
+    after: set.after.map(serializeEvidenceItem),
+  };
+}
+
+function mapEvidenceSet(raw: Record<string, unknown> | undefined): TaskEvidenceSet | undefined {
+  if (!raw || raw.version !== 2) return undefined;
+  return {
+    version: 2,
+    before: Array.isArray(raw.before) ? mapEvidenceItems(raw.before) : [],
+    after: Array.isArray(raw.after) ? mapEvidenceItems(raw.after) : [],
+  };
+}
+
 function mapTask(data: Record<string, unknown>): Task {
   return {
-    ...(data as Omit<Task, 'createdAt' | 'updatedAt' | 'submittedAt' | 'reviewedAt' | 'evidence'>),
+    ...(data as Omit<Task, 'createdAt' | 'updatedAt' | 'submittedAt' | 'reviewedAt' | 'evidence' | 'evidenceSet'>),
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
     submittedAt: toOptionalDate(data.submittedAt),
     reviewedAt: toOptionalDate(data.reviewedAt),
     ...(data.evidence ? { evidence: mapEvidence(data.evidence as Record<string, unknown>) } : {}),
+    ...(data.evidenceSet ? { evidenceSet: mapEvidenceSet(data.evidenceSet as Record<string, unknown>) } : {}),
   };
 }
 
@@ -199,6 +232,40 @@ export async function submitTask(taskId: string, childId: string, evidence?: Tas
     updateData.evidence = evidence;
   }
   await updateDoc(taskRef, updateData);
+}
+
+export async function submitTaskWithSet(
+  taskId: string,
+  childId: string,
+  evidenceSet: TaskEvidenceSet,
+): Promise<void> {
+  if (!taskId) throw new Error('Task ID is required');
+  const taskRef = doc(db, 'tasks', taskId);
+
+  const [taskSnap, child] = await Promise.all([getDoc(taskRef), getUserRecord(childId)]);
+  if (!taskSnap.exists()) throw new Error('Task not found');
+
+  const task = mapTask(taskSnap.data() as Record<string, unknown>);
+  assertUserRoleAndFamily(child, 'child', task.familyId);
+
+  if (task.assignedToChildId !== childId) {
+    throw new Error('Task does not belong to this child');
+  }
+  if (task.status !== 'assigned' && task.status !== 'returned') {
+    throw new Error('Task cannot be submitted');
+  }
+
+  const now = new Date();
+  await updateDoc(taskRef, {
+    status: 'submitted',
+    submittedAt: now,
+    reviewedAt: deleteField(),
+    feedback: deleteField(),
+    updatedAt: now,
+    evidenceSet: serializeEvidenceSet(evidenceSet),
+    // Explicitly clear legacy v1 evidence so parents never see stale data on v2 resubmissions.
+    evidence: deleteField(),
+  });
 }
 
 export async function reviewTask(
