@@ -23,7 +23,7 @@ export function ChildHeroCard({ name, points, availablePoints, pendingPoints, mo
         </ThemedText>
       ) : null}
       {pendingPoints > 0 ? (
-        <ThemedText style={styles.pending}>• {pendingPoints} pts pending approval</ThemedText>
+        <ThemedText style={styles.pending}>• {pendingPoints} pts waiting for approval</ThemedText>
       ) : null}
     </DashboardCard>
   );

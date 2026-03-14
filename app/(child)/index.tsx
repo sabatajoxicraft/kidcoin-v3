@@ -173,6 +173,14 @@ export default function ChildDashboard() {
 
         <ThemedText type="title" style={styles.title}>Mission Board</ThemedText>
 
+        {activeChild ? (
+          <View style={styles.childModeBanner}>
+            <ThemedText style={[styles.childModeText, { color: tintColor }]}>
+              👶 Child mode · {activeChild.displayName}
+            </ThemedText>
+          </View>
+        ) : null}
+
         <ChildHeroCard
           name={displayChild?.displayName ?? 'there'}
           points={currentPoints}
@@ -271,7 +279,7 @@ export default function ChildDashboard() {
         )}
 
         {returnedTasks.length > 0 ? (
-          <DashboardSectionHeader title="Fix & Resubmit" meta={`${returnedTasks.length}`} />
+          <DashboardSectionHeader title="Fix & Resubmit" meta={`${returnedTasks.length} need${returnedTasks.length === 1 ? 's' : ''} attention`} />
         ) : null}
 
         {returnedTasks.map((task) => (
@@ -282,7 +290,7 @@ export default function ChildDashboard() {
             </View>
             {task.description ? <ThemedText style={styles.taskDescription}>{task.description}</ThemedText> : null}
             <ThemedText style={styles.meta}>{task.points} pts</ThemedText>
-            {task.feedback ? <ThemedText style={styles.feedback}>Feedback: {task.feedback}</ThemedText> : null}
+            {task.feedback ? <ThemedText style={styles.feedback}>{"Parent's note:"} {task.feedback}</ThemedText> : null}
 
             {task.evidence ? (
               <View style={styles.evidencePreview}>
@@ -489,7 +497,20 @@ export default function ChildDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 24 },
   content: {},
-  title: { marginBottom: 16 },
+  title: { marginBottom: 8 },
+  childModeBanner: {
+    marginBottom: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    backgroundColor: 'transparent',
+  },
+  childModeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    opacity: 0.85,
+  },
   error: { color: '#e53e3e', marginBottom: 8 },
   loader: { marginBottom: 8 },
   taskTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
