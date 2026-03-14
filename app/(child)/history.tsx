@@ -29,15 +29,15 @@ export default function HistoryScreen() {
           <TouchableOpacity onPress={() => router.back()}>
             <ThemedText style={[styles.backButton, { color: tintColor }]}>← Back</ThemedText>
           </TouchableOpacity>
-          <ThemedText type="title" style={styles.title}>My History</ThemedText>
+          <ThemedText type="title" style={styles.title}>My Recent Activity</ThemedText>
           {displayChild?.displayName ? (
-            <ThemedText style={styles.subtitle}>{displayChild.displayName}&apos;s activity</ThemedText>
+            <ThemedText style={styles.subtitle}>{displayChild.displayName}&apos;s latest activity</ThemedText>
           ) : null}
         </View>
 
         <DashboardSectionHeader
           title="Recent Activity"
-          meta={transactions.length > 0 ? `${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}` : undefined}
+          meta={transactions.length > 0 ? `Latest ${transactions.length}` : undefined}
         />
 
         {transactions.length > 0 ? (

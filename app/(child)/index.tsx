@@ -414,7 +414,7 @@ export default function ChildDashboard() {
             <DashboardSectionHeader title="📜 Activity & Payouts" meta="View All →" />
             <ThemedText style={styles.historyHint}>
               {transactions.length > 0
-                ? `${transactions.length} transaction${transactions.length !== 1 ? 's' : ''} · ${payoutRequests.length} payout request${payoutRequests.length !== 1 ? 's' : ''}`
+                ? `Latest ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''} · ${payoutRequests.length} payout request${payoutRequests.length !== 1 ? 's' : ''}`
                 : 'No activity yet — complete tasks to earn points! 🌟'}
             </ThemedText>
           </DashboardCard>
