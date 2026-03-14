@@ -9,6 +9,18 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { formatPointsAsMoney, useDeviceCurrency } from '@/lib/currency';
 import { DashboardCard, DashboardEmptyState, DashboardSectionHeader } from '@/components/dashboard';
 
+const TRANSACTION_LABELS: Record<string, string> = {
+  task_reward: '✅ Task Completed',
+  lesson_reward: '📚 Lesson Completed',
+  weekly_allowance: '🌟 Weekly Allowance',
+  payout_deduction: '🎉 Points Redeemed',
+  adjustment: '⚖️ Points Adjustment',
+};
+
+function friendlyTransactionLabel(type: string): string {
+  return TRANSACTION_LABELS[type] ?? '💰 Activity';
+}
+
 export default function HistoryScreen() {
   const { family, children, activeChild, userProfile } = useFamily();
   const { transactions, payoutRequests } = useTask();
@@ -43,7 +55,12 @@ export default function HistoryScreen() {
         {transactions.length > 0 ? (
           transactions.map((tx) => (
             <View key={tx.id} style={[styles.transactionRow, { borderColor: textColor + '22' }]}>
-              <ThemedText style={styles.transactionTitle}>{tx.note ?? tx.type}</ThemedText>
+              <View style={styles.transactionInfo}>
+                <ThemedText style={styles.transactionTitle}>{friendlyTransactionLabel(tx.type)}</ThemedText>
+                {tx.note ? (
+                  <ThemedText style={styles.transactionNote}>{tx.note}</ThemedText>
+                ) : null}
+              </View>
               <ThemedText style={styles.transactionPoints}>
                 {tx.pointsDelta > 0 ? '+' : ''}{tx.pointsDelta}
               </ThemedText>
@@ -97,7 +114,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  transactionTitle: { fontSize: 14, flex: 1 },
+  transactionInfo: { flex: 1, marginRight: 8 },
+  transactionTitle: { fontSize: 14 },
+  transactionNote: { fontSize: 12, opacity: 0.6, marginTop: 2 },
   transactionPoints: { fontSize: 15, fontWeight: '600' },
   reqPoints: { fontSize: 16, fontWeight: '600' },
   reqMeta: { marginTop: 4, fontSize: 13, opacity: 0.7 },
