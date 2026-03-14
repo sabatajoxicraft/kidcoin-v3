@@ -60,8 +60,6 @@ export default function ChildDashboard() {
   const conversionRate = family?.settings?.pointsConversionRate ?? 0.1;
   const assignedTasks = tasks.filter((task) => task.status === 'assigned');
   const returnedTasks = tasks.filter((task) => task.status === 'returned');
-  const recentTransactions = transactions.slice(0, 5);
-
   const familyId = displayChild?.familyId ?? family?.id ?? '';
   const childId = displayChild?.id ?? '';
 
@@ -411,44 +409,16 @@ export default function ChildDashboard() {
           </TouchableOpacity>
         </DashboardCard>
 
-        <View style={styles.secondary}>
-          <DashboardSectionHeader
-            title="Recent Activity"
-            meta={recentTransactions.length > 0 ? `last ${recentTransactions.length}` : undefined}
-          />
-          {recentTransactions.length > 0 ? (
-            recentTransactions.map((transaction) => (
-              <View key={transaction.id} style={[styles.transactionRow, { borderColor: textColor + '22' }]}>
-                <ThemedText style={styles.transactionTitle}>{transaction.note ?? transaction.type}</ThemedText>
-                <ThemedText style={styles.transactionPoints}>
-                  {transaction.pointsDelta > 0 ? '+' : ''}{transaction.pointsDelta}
-                </ThemedText>
-              </View>
-            ))
-          ) : (
-            <DashboardEmptyState message="No transactions yet." />
-          )}
-
-          <DashboardSectionHeader
-            title="Payout History"
-            meta={payoutRequests.length > 0 ? `${payoutRequests.length}` : undefined}
-            style={styles.payoutHistoryHeader}
-          />
-          {payoutRequests.length > 0 ? (
-            payoutRequests.map((req) => (
-              <DashboardCard key={req.id} borderColor={textColor + '22'}>
-                <ThemedText style={styles.taskTitle}>{req.requestedPoints} pts</ThemedText>
-                <ThemedText style={styles.meta}>
-                  {formatPointsAsMoney(req.requestedPoints, conversionRate, currencyCode)} · {req.status}
-                </ThemedText>
-                {req.requestNote ? <ThemedText style={styles.feedback}>Note: {req.requestNote}</ThemedText> : null}
-                {req.reviewNote ? <ThemedText style={styles.feedback}>Review: {req.reviewNote}</ThemedText> : null}
-              </DashboardCard>
-            ))
-          ) : (
-            <DashboardEmptyState message="No payout requests yet." />
-          )}
-        </View>
+        <TouchableOpacity onPress={() => router.push('/(child)/history')} activeOpacity={0.8}>
+          <DashboardCard borderColor={tintColor + '44'}>
+            <DashboardSectionHeader title="📜 Activity & Payouts" meta="View All →" />
+            <ThemedText style={styles.historyHint}>
+              {transactions.length > 0
+                ? `${transactions.length} transaction${transactions.length !== 1 ? 's' : ''} · ${payoutRequests.length} payout request${payoutRequests.length !== 1 ? 's' : ''}`
+                : 'No activity yet — complete tasks to earn points! 🌟'}
+            </ThemedText>
+          </DashboardCard>
+        </TouchableOpacity>
 
         <View style={styles.quickNavRow}>
           <ParentQuickActionTile
@@ -533,20 +503,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   payoutMeta: { fontSize: 13, opacity: 0.65, marginBottom: 8 },
-  secondary: { opacity: 0.85, marginTop: 4 },
-  payoutHistoryHeader: { marginTop: 12 },
-  transactionRow: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  transactionTitle: { fontSize: 14, flex: 1 },
-  transactionPoints: { fontSize: 15, fontWeight: '600' },
+  historyHint: { fontSize: 13, opacity: 0.65, marginTop: 4 },
   quickNavRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   evidenceRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   evidenceButton: { flex: 1, borderWidth: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 },
