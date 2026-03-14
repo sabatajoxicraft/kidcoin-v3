@@ -14,6 +14,15 @@ import { safeGoalPct, subscribeChildSavingsGoals } from '@/lib/goal-service';
 import { subscribeActiveAnnouncements } from '@/lib/announcement-service';
 import { formatPointsAsMoney, useDeviceCurrency } from '@/lib/currency';
 import type { Announcement, EvidenceDraft, SavingsGoal } from '@/src/types';
+import {
+  DashboardCard,
+  DashboardSectionHeader,
+  DashboardEmptyState,
+  DashboardBadge,
+  DashboardActionButton,
+  ChildHeroCard,
+  ParentQuickActionTile,
+} from '@/components/dashboard';
 
 function isPositiveIntegerString(value: string): boolean {
   return /^[1-9]\d*$/.test(value);
@@ -161,98 +170,51 @@ export default function ChildDashboard() {
   return (
     <ThemedView style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
-        <ThemedText type="title" style={styles.title}>My Tasks</ThemedText>
 
-        <View style={[styles.pointsCard, { borderColor: tintColor + '44' }]}>
-          <ThemedText style={styles.pointsLabel}>
-            {displayChild ? `${displayChild.displayName}'s Points` : 'Current Points'}
-          </ThemedText>
-          <ThemedText style={styles.pointsValue}>{currentPoints}</ThemedText>
-        </View>
+        <ThemedText type="title" style={styles.title}>Mission Board</ThemedText>
 
-        <TouchableOpacity
-          style={[styles.refreshButton, { borderColor: textColor + '44' }]}
-          onPress={() => refresh().catch(() => undefined)}
-        >
-          <ThemedText style={styles.refreshText}>Refresh</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.lessonsButton, { backgroundColor: tintColor }]}
-          onPress={() => router.push('/(child)/lessons')}
-        >
-          <ThemedText style={styles.lessonsButtonText}>📚 Financial Lessons</ThemedText>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.goalsButton, { backgroundColor: tintColor }]}
-          onPress={() => router.push('/(child)/goals')}
-        >
-          <ThemedText style={styles.goalsButtonText}>🎯 My Savings Goals</ThemedText>
-        </TouchableOpacity>
-
-        <View style={[styles.goalsCompact, { borderColor: tintColor + '44' }]}>
-          {activeGoals.length > 0 ? (
-            <>
-              <ThemedText style={styles.goalsCompactLabel}>
-                {activeGoals.length} active {activeGoals.length === 1 ? 'goal' : 'goals'}
-              </ThemedText>
-              {(() => {
-                const top = activeGoals.reduce((best, g) =>
-                  safeGoalPct(currentPoints, g.targetPoints) > safeGoalPct(currentPoints, best.targetPoints) ? g : best,
-                activeGoals[0]);
-                const pct = safeGoalPct(currentPoints, top.targetPoints);
-                return (
-                  <ThemedText style={styles.goalsCompactProgress}>
-                    {top.title}: {pct}%
-                  </ThemedText>
-                );
-              })()}
-            </>
-          ) : (
-            <>
-              <ThemedText style={styles.goalsCompactLabel}>No active goals yet</ThemedText>
-              <ThemedText style={styles.goalsCompactProgress}>
-                Tap &quot;My Savings Goals&quot; to set your first goal 🎯
-              </ThemedText>
-            </>
-          )}
-        </View>
-
-        {/* Announcements compact card */}
-        <TouchableOpacity
-          style={[styles.announcementsCompact, { borderColor: tintColor + '44' }]}
-          onPress={() => router.push('/(child)/announcements')}
-        >
-          {activeAnnouncements.length > 0 ? (
-            <>
-              <ThemedText style={styles.announcementsCompactLabel}>
-                📢 {activeAnnouncements[0].title}
-              </ThemedText>
-              <ThemedText style={styles.announcementsCompactBody} numberOfLines={2}>
-                {activeAnnouncements[0].body}
-              </ThemedText>
-              {activeAnnouncements.length > 1 && (
-                <ThemedText style={styles.announcementsCompactMore}>
-                  +{activeAnnouncements.length - 1} more announcement{activeAnnouncements.length > 2 ? 's' : ''}
-                </ThemedText>
-              )}
-            </>
-          ) : (
-            <>
-              <ThemedText style={styles.announcementsCompactLabel}>📢 Announcements</ThemedText>
-              <ThemedText style={styles.announcementsCompactBody}>No announcements yet.</ThemedText>
-            </>
-          )}
-        </TouchableOpacity>
+        <ChildHeroCard
+          name={displayChild?.displayName ?? 'there'}
+          points={currentPoints}
+          availablePoints={availablePayoutPoints}
+          pendingPoints={pendingPayoutPoints}
+          moneyEquivalent={formatPointsAsMoney(availablePayoutPoints, conversionRate, currencyCode)}
+          borderColor={tintColor + '44'}
+        />
 
         {error ? <ThemedText style={styles.error}>{error}</ThemedText> : null}
+
         {loading ? <ActivityIndicator color={tintColor} style={styles.loader} /> : null}
 
-        <ThemedText type="subtitle" style={styles.sectionTitle}>Assigned Tasks</ThemedText>
+        <TouchableOpacity onPress={() => router.push('/(child)/announcements')} activeOpacity={0.8}>
+          <DashboardCard borderColor={tintColor + '44'}>
+            <DashboardSectionHeader title="📢 Announcements" />
+            {activeAnnouncements.length > 0 ? (
+              <>
+                <ThemedText style={styles.announcementTitle}>{activeAnnouncements[0].title}</ThemedText>
+                <ThemedText style={styles.announcementBody} numberOfLines={2}>
+                  {activeAnnouncements[0].body}
+                </ThemedText>
+                {activeAnnouncements.length > 1 ? (
+                  <ThemedText style={styles.announcementsMore}>
+                    +{activeAnnouncements.length - 1} more
+                  </ThemedText>
+                ) : null}
+              </>
+            ) : (
+              <ThemedText style={styles.announcementBody}>No announcements yet.</ThemedText>
+            )}
+          </DashboardCard>
+        </TouchableOpacity>
+
+        <DashboardSectionHeader
+          title="Do Next"
+          meta={assignedTasks.length > 0 ? `${assignedTasks.length} task${assignedTasks.length !== 1 ? 's' : ''}` : undefined}
+        />
+
         {assignedTasks.length > 0 ? (
           assignedTasks.map((task) => (
-            <View key={task.id} style={[styles.taskCard, { borderColor: tintColor + '44' }]}>
+            <DashboardCard key={task.id} borderColor={tintColor + '44'}>
               <ThemedText style={styles.taskTitle}>{task.title}</ThemedText>
               {task.description ? <ThemedText style={styles.taskDescription}>{task.description}</ThemedText> : null}
               <ThemedText style={styles.meta}>{task.points} pts</ThemedText>
@@ -287,149 +249,238 @@ export default function ChildDashboard() {
               {pickerErrors[task.id] ? <ThemedText style={styles.pickerError}>{pickerErrors[task.id]}</ThemedText> : null}
 
               <TouchableOpacity
-                style={[styles.submitButton, { backgroundColor: tintColor }]}
-                onPress={() => handleSubmit(task.id)}
                 disabled={loading}
+                activeOpacity={0.8}
+                accessibilityState={{ disabled: loading }}
+                onPress={() => handleSubmit(task.id)}
               >
-                <ThemedText style={styles.submitButtonText}>Submit</ThemedText>
+                <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
+                  <DashboardActionButton
+                    variant="primary"
+                    label="Submit"
+                    onPress={() => {}}
+                    backgroundColor={tintColor}
+                    style={loading ? { opacity: 0.4 } : undefined}
+                  />
+                </View>
               </TouchableOpacity>
-            </View>
+            </DashboardCard>
           ))
         ) : (
-          <ThemedText style={styles.empty}>No assigned tasks right now.</ThemedText>
+          <DashboardEmptyState message="No tasks assigned right now — check back soon! 🎉" />
         )}
 
-        <ThemedText type="subtitle" style={styles.sectionTitle}>Returned Tasks</ThemedText>
         {returnedTasks.length > 0 ? (
-          returnedTasks.map((task) => (
-            <View key={task.id} style={[styles.taskCard, { borderColor: tintColor + '44' }]}>
+          <DashboardSectionHeader title="Fix & Resubmit" meta={`${returnedTasks.length}`} />
+        ) : null}
+
+        {returnedTasks.map((task) => (
+          <DashboardCard key={task.id} borderColor={tintColor + '44'}>
+            <View style={styles.taskTitleRow}>
               <ThemedText style={styles.taskTitle}>{task.title}</ThemedText>
-              {task.description ? <ThemedText style={styles.taskDescription}>{task.description}</ThemedText> : null}
-              <ThemedText style={styles.meta}>{task.points} pts</ThemedText>
-              {task.feedback ? <ThemedText style={styles.feedback}>Feedback: {task.feedback}</ThemedText> : null}
+              <DashboardBadge label="Returned" backgroundColor="#F59E0B" />
+            </View>
+            {task.description ? <ThemedText style={styles.taskDescription}>{task.description}</ThemedText> : null}
+            <ThemedText style={styles.meta}>{task.points} pts</ThemedText>
+            {task.feedback ? <ThemedText style={styles.feedback}>Feedback: {task.feedback}</ThemedText> : null}
 
-              {task.evidence ? (
-                <View style={styles.evidencePreview}>
-                  <Image source={{ uri: task.evidence.downloadUrl }} style={styles.evidenceImage} contentFit="cover" />
-                  <ThemedText style={styles.evidenceLabel}>Previous evidence</ThemedText>
-                </View>
-              ) : null}
-
-              <View style={styles.evidenceRow}>
-                <TouchableOpacity
-                  style={[styles.evidenceButton, { borderColor: tintColor }]}
-                  onPress={() => pickImage(task.id, 'camera')}
-                  disabled={loading}
-                >
-                  <ThemedText style={styles.evidenceButtonText}>📷 Camera</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.evidenceButton, { borderColor: tintColor }]}
-                  onPress={() => pickImage(task.id, 'gallery')}
-                  disabled={loading}
-                >
-                  <ThemedText style={styles.evidenceButtonText}>🖼 Gallery</ThemedText>
-                </TouchableOpacity>
+            {task.evidence ? (
+              <View style={styles.evidencePreview}>
+                <Image source={{ uri: task.evidence.downloadUrl }} style={styles.evidenceImage} contentFit="cover" />
+                <ThemedText style={styles.evidenceLabel}>Previous evidence</ThemedText>
               </View>
+            ) : null}
 
-              {evidenceDrafts[task.id] ? (
-                <View style={styles.evidencePreview}>
-                  <Image source={{ uri: evidenceDrafts[task.id].localUri }} style={styles.evidenceImage} contentFit="cover" />
-                  <TouchableOpacity style={styles.removeButton} onPress={() => clearDraft(task.id)}>
-                    <ThemedText style={styles.removeButtonText}>✕</ThemedText>
-                  </TouchableOpacity>
-                  <ThemedText style={styles.evidenceLabel}>New evidence attached</ThemedText>
-                </View>
-              ) : null}
-
-              {pickerErrors[task.id] ? <ThemedText style={styles.pickerError}>{pickerErrors[task.id]}</ThemedText> : null}
-
+            <View style={styles.evidenceRow}>
               <TouchableOpacity
-                style={[styles.submitButton, { backgroundColor: tintColor }]}
-                onPress={() => handleSubmit(task.id)}
+                style={[styles.evidenceButton, { borderColor: tintColor }]}
+                onPress={() => pickImage(task.id, 'camera')}
                 disabled={loading}
               >
-                <ThemedText style={styles.submitButtonText}>Resubmit</ThemedText>
+                <ThemedText style={styles.evidenceButtonText}>📷 Camera</ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.evidenceButton, { borderColor: tintColor }]}
+                onPress={() => pickImage(task.id, 'gallery')}
+                disabled={loading}
+              >
+                <ThemedText style={styles.evidenceButtonText}>🖼 Gallery</ThemedText>
               </TouchableOpacity>
             </View>
-          ))
-        ) : (
-          <ThemedText style={styles.empty}>No returned tasks right now.</ThemedText>
-        )}
 
-        <ThemedText type="subtitle" style={styles.sectionTitle}>Recent Transactions</ThemedText>
-        {recentTransactions.length > 0 ? (
-          recentTransactions.map((transaction) => (
-            <View key={transaction.id} style={[styles.transactionRow, { borderColor: textColor + '22' }]}>
-              <ThemedText style={styles.transactionTitle}>{transaction.note ?? transaction.type}</ThemedText>
-              <ThemedText style={styles.transactionPoints}>
-                {transaction.pointsDelta > 0 ? '+' : ''}{transaction.pointsDelta}
-              </ThemedText>
-            </View>
-          ))
-        ) : (
-          <ThemedText style={styles.empty}>No transactions yet.</ThemedText>
-        )}
+            {evidenceDrafts[task.id] ? (
+              <View style={styles.evidencePreview}>
+                <Image source={{ uri: evidenceDrafts[task.id].localUri }} style={styles.evidenceImage} contentFit="cover" />
+                <TouchableOpacity style={styles.removeButton} onPress={() => clearDraft(task.id)}>
+                  <ThemedText style={styles.removeButtonText}>✕</ThemedText>
+                </TouchableOpacity>
+                <ThemedText style={styles.evidenceLabel}>New evidence attached</ThemedText>
+              </View>
+            ) : null}
 
-        <ThemedText type="subtitle" style={styles.sectionTitle}>Request Payout</ThemedText>
-        <TextInput
-          style={[styles.input, { color: textColor, borderColor: textColor + '44' }]}
-          placeholder="Points to redeem"
-          placeholderTextColor={textColor + '66'}
-          keyboardType="numeric"
-          value={payoutPoints}
-          onChangeText={setPayoutPoints}
-        />
-        <TextInput
-          style={[styles.input, { color: textColor, borderColor: textColor + '44' }]}
-          placeholder="Note (optional)"
-          placeholderTextColor={textColor + '66'}
-          value={payoutNote}
-          onChangeText={setPayoutNote}
-        />
-        <ThemedText style={styles.payoutMeta}>
-          Available: {availablePayoutPoints} pts ({formatPointsAsMoney(availablePayoutPoints, conversionRate, currencyCode)}){pendingPayoutPoints > 0 ? ` · ${pendingPayoutPoints} pts pending` : ''}
-          {minPayoutAmount > 0 ? ` · Min: ${minPayoutAmount} pts` : ''}
-        </ThemedText>
-        <TouchableOpacity
-          style={[styles.submitButton, { backgroundColor: tintColor }, (isPayoutFormInvalid || loading) ? { opacity: 0.4 } : undefined]}
-          onPress={handleRequestPayout}
-          disabled={isPayoutFormInvalid || loading}
-        >
-          <ThemedText style={styles.submitButtonText}>Submit Payout Request</ThemedText>
+            {pickerErrors[task.id] ? <ThemedText style={styles.pickerError}>{pickerErrors[task.id]}</ThemedText> : null}
+
+            <TouchableOpacity
+              disabled={loading}
+              activeOpacity={0.8}
+              accessibilityState={{ disabled: loading }}
+              onPress={() => handleSubmit(task.id)}
+            >
+              <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
+                <DashboardActionButton
+                  variant="primary"
+                  label="Resubmit"
+                  onPress={() => {}}
+                  backgroundColor={tintColor}
+                  style={loading ? { opacity: 0.4 } : undefined}
+                />
+              </View>
+            </TouchableOpacity>
+          </DashboardCard>
+        ))}
+
+        <TouchableOpacity onPress={() => router.push('/(child)/goals')} activeOpacity={0.8}>
+          <DashboardCard borderColor={tintColor + '44'}>
+            <DashboardSectionHeader title="My Goals" meta="View All →" />
+            {activeGoals.length > 0 ? (
+              (() => {
+                const top = activeGoals.reduce(
+                  (best, g) =>
+                    safeGoalPct(currentPoints, g.targetPoints) > safeGoalPct(currentPoints, best.targetPoints)
+                      ? g
+                      : best,
+                  activeGoals[0],
+                );
+                const pct = safeGoalPct(currentPoints, top.targetPoints);
+                return (
+                  <>
+                    <ThemedText style={styles.goalTitle}>{top.title}</ThemedText>
+                    <ThemedText style={styles.goalProgress}>{pct}% complete</ThemedText>
+                  </>
+                );
+              })()
+            ) : (
+              <ThemedText style={styles.goalEmpty}>Set your first savings goal 🎯</ThemedText>
+            )}
+          </DashboardCard>
         </TouchableOpacity>
 
-        <ThemedText type="subtitle" style={styles.sectionTitle}>Payout Requests</ThemedText>
-        {payoutRequests.length > 0 ? (
-          payoutRequests.map((req) => (
-            <View key={req.id} style={[styles.taskCard, { borderColor: textColor + '22' }]}>
-              <ThemedText style={styles.taskTitle}>{req.requestedPoints} pts</ThemedText>
-              <ThemedText style={styles.meta}>
-                {formatPointsAsMoney(req.requestedPoints, conversionRate, currencyCode)} · {req.status}
-              </ThemedText>
-              {req.requestNote ? <ThemedText style={styles.feedback}>Note: {req.requestNote}</ThemedText> : null}
-              {req.reviewNote ? <ThemedText style={styles.feedback}>Review: {req.reviewNote}</ThemedText> : null}
+        <DashboardSectionHeader title="Request Payout" />
+        <DashboardCard borderColor={tintColor + '44'}>
+          <TextInput
+            style={[styles.input, { color: textColor, borderColor: textColor + '44' }]}
+            placeholder="Points to redeem"
+            placeholderTextColor={textColor + '66'}
+            keyboardType="numeric"
+            value={payoutPoints}
+            onChangeText={setPayoutPoints}
+          />
+          <TextInput
+            style={[styles.input, { color: textColor, borderColor: textColor + '44' }]}
+            placeholder="Note (optional)"
+            placeholderTextColor={textColor + '66'}
+            value={payoutNote}
+            onChangeText={setPayoutNote}
+          />
+          <ThemedText style={styles.payoutMeta}>
+            Available: {availablePayoutPoints} pts ({formatPointsAsMoney(availablePayoutPoints, conversionRate, currencyCode)}){pendingPayoutPoints > 0 ? ` · ${pendingPayoutPoints} pts pending` : ''}{minPayoutAmount > 0 ? ` · Min: ${minPayoutAmount} pts` : ''}
+          </ThemedText>
+          <TouchableOpacity
+            disabled={isPayoutFormInvalid || loading}
+            activeOpacity={0.8}
+            accessibilityState={{ disabled: isPayoutFormInvalid || loading }}
+            onPress={handleRequestPayout}
+          >
+            <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
+              <DashboardActionButton
+                variant="primary"
+                label="Submit Payout Request"
+                onPress={() => {}}
+                backgroundColor={tintColor}
+                style={(isPayoutFormInvalid || loading) ? { opacity: 0.4 } : undefined}
+              />
             </View>
-          ))
-        ) : (
-          <ThemedText style={styles.empty}>No payout requests yet.</ThemedText>
-        )}
+          </TouchableOpacity>
+        </DashboardCard>
+
+        <View style={styles.secondary}>
+          <DashboardSectionHeader
+            title="Recent Activity"
+            meta={recentTransactions.length > 0 ? `last ${recentTransactions.length}` : undefined}
+          />
+          {recentTransactions.length > 0 ? (
+            recentTransactions.map((transaction) => (
+              <View key={transaction.id} style={[styles.transactionRow, { borderColor: textColor + '22' }]}>
+                <ThemedText style={styles.transactionTitle}>{transaction.note ?? transaction.type}</ThemedText>
+                <ThemedText style={styles.transactionPoints}>
+                  {transaction.pointsDelta > 0 ? '+' : ''}{transaction.pointsDelta}
+                </ThemedText>
+              </View>
+            ))
+          ) : (
+            <DashboardEmptyState message="No transactions yet." />
+          )}
+
+          <DashboardSectionHeader
+            title="Payout History"
+            meta={payoutRequests.length > 0 ? `${payoutRequests.length}` : undefined}
+            style={styles.payoutHistoryHeader}
+          />
+          {payoutRequests.length > 0 ? (
+            payoutRequests.map((req) => (
+              <DashboardCard key={req.id} borderColor={textColor + '22'}>
+                <ThemedText style={styles.taskTitle}>{req.requestedPoints} pts</ThemedText>
+                <ThemedText style={styles.meta}>
+                  {formatPointsAsMoney(req.requestedPoints, conversionRate, currencyCode)} · {req.status}
+                </ThemedText>
+                {req.requestNote ? <ThemedText style={styles.feedback}>Note: {req.requestNote}</ThemedText> : null}
+                {req.reviewNote ? <ThemedText style={styles.feedback}>Review: {req.reviewNote}</ThemedText> : null}
+              </DashboardCard>
+            ))
+          ) : (
+            <DashboardEmptyState message="No payout requests yet." />
+          )}
+        </View>
+
+        <View style={styles.quickNavRow}>
+          <ParentQuickActionTile
+            label="📚 Lessons"
+            onPress={() => router.push('/(child)/lessons')}
+            tintColor={tintColor}
+          />
+          <ParentQuickActionTile
+            label="🎯 Goals"
+            onPress={() => router.push('/(child)/goals')}
+            tintColor={tintColor}
+          />
+        </View>
+
+        <DashboardActionButton
+          variant="outline"
+          label="Refresh"
+          onPress={() => refresh().catch(() => undefined)}
+          borderColor={textColor + '44'}
+        />
 
         {activeChild ? (
-          <TouchableOpacity
-            style={[styles.switchButton, { borderColor: textColor + '44' }]}
+          <DashboardActionButton
+            variant="outline"
+            label="Switch to Parent"
             onPress={async () => {
               await exitChildMode();
               router.replace('/(parent)');
             }}
-          >
-            <ThemedText style={styles.switchButtonText}>Switch to Parent</ThemedText>
-          </TouchableOpacity>
+            borderColor={textColor + '44'}
+          />
         ) : null}
 
-        <TouchableOpacity style={[styles.signOutButton, { borderColor: textColor + '44' }]} onPress={signOut}>
-          <ThemedText style={styles.signOutText}>Sign Out</ThemedText>
-        </TouchableOpacity>
+        <DashboardActionButton
+          variant="outline"
+          label="Sign Out"
+          onPress={signOut}
+          borderColor={textColor + '44'}
+        />
+
       </ScrollView>
     </ThemedView>
   );
@@ -439,73 +490,30 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 24 },
   content: {},
   title: { marginBottom: 16 },
-  pointsCard: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 10,
-  },
-  pointsLabel: { opacity: 0.7, fontSize: 14 },
-  pointsValue: { fontSize: 30, fontWeight: '700' },
-  refreshButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    alignItems: 'center',
-    paddingVertical: 10,
-    marginBottom: 8,
-  },
-  refreshText: { fontWeight: '600' },
-  lessonsButton: {
-    borderRadius: 8,
-    alignItems: 'center' as const,
-    paddingVertical: 12,
-    marginBottom: 8,
-  },
-  lessonsButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  goalsButton: {
-    borderRadius: 8,
-    alignItems: 'center' as const,
-    paddingVertical: 12,
-    marginBottom: 8,
-  },
-  goalsButtonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  goalsCompact: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-  },
-  goalsCompactLabel: { fontSize: 14, fontWeight: '600', opacity: 0.85 },
-  goalsCompactProgress: { fontSize: 13, opacity: 0.65, marginTop: 2 },
-  announcementsCompact: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 8,
-  },
-  announcementsCompactLabel: { fontSize: 14, fontWeight: '600', opacity: 0.85, marginBottom: 2 },
-  announcementsCompactBody: { fontSize: 13, opacity: 0.65, lineHeight: 18 },
-  announcementsCompactMore: { fontSize: 12, opacity: 0.5, marginTop: 4 },
   error: { color: '#e53e3e', marginBottom: 8 },
   loader: { marginBottom: 8 },
-  sectionTitle: { marginTop: 12, marginBottom: 8 },
-  taskCard: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-  },
+  taskTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   taskTitle: { fontSize: 16, fontWeight: '600' },
   taskDescription: { marginTop: 4, opacity: 0.8 },
   meta: { marginTop: 6, fontSize: 13, opacity: 0.7 },
   feedback: { marginTop: 6, fontSize: 13 },
-  submitButton: {
-    marginTop: 10,
+  announcementTitle: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  announcementBody: { fontSize: 13, opacity: 0.65, lineHeight: 18 },
+  announcementsMore: { fontSize: 12, opacity: 0.5, marginTop: 4 },
+  goalTitle: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  goalProgress: { fontSize: 13, opacity: 0.65 },
+  goalEmpty: { fontSize: 13, opacity: 0.65 },
+  input: {
+    borderWidth: 1,
     borderRadius: 8,
-    alignItems: 'center',
+    paddingHorizontal: 12,
     paddingVertical: 10,
+    marginBottom: 8,
+    fontSize: 15,
   },
-  submitButtonText: { color: '#fff', fontWeight: '600' },
+  payoutMeta: { fontSize: 13, opacity: 0.65, marginBottom: 8 },
+  secondary: { opacity: 0.85, marginTop: 4 },
+  payoutHistoryHeader: { marginTop: 12 },
   transactionRow: {
     borderWidth: 1,
     borderRadius: 8,
@@ -518,32 +526,7 @@ const styles = StyleSheet.create({
   },
   transactionTitle: { fontSize: 14, flex: 1 },
   transactionPoints: { fontSize: 15, fontWeight: '600' },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 8,
-    fontSize: 15,
-  },
-  empty: { opacity: 0.6, marginBottom: 8 },
-  payoutMeta: { fontSize: 13, opacity: 0.65, marginBottom: 8 },
-  switchButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 12,
-  },
-  switchButtonText: { fontWeight: '600', fontSize: 16 },
-  signOutButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 12,
-  },
-  signOutText: { fontWeight: '600', fontSize: 16 },
+  quickNavRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   evidenceRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   evidenceButton: { flex: 1, borderWidth: 1, borderRadius: 8, paddingVertical: 8, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 4 },
   evidenceButtonText: { fontSize: 13, fontWeight: '600' },
