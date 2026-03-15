@@ -1,79 +1,38 @@
-# AUTO-TRIGGERS (MANDATORY)
+# AUTO-TRIGGERS
 
-> MDDF v2.0 | Invoke skills automatically. Circuit breakers prevent tail spins.
+> Keep triggers explicit, evidence-based, and tied to the current repo workflow.
 
----
-
-## Auto-Trigger Table
+## Trigger table
 
 | IF | THEN | Priority |
 |----|------|----------|
-| Build/test fails | `skill(build-failure-triage)` | P0 |
-| 2nd identical error | **CIRCUIT BREAKER** → Research → User | P0 |
-| Scaffold task | Include CLI rule in prompt (see scaffolding-rules.md) | P0 |
-| Import/path error | Search ALL files for pattern, fix in batch | P0 |
-| New dependency | `skill(pre-migration-compatibility-check)` | P1 |
-| Code exploration | Launch CodeScouts × max parallel (scale to complexity) | P1 |
-| Code change | `skill(implement-with-validation)` | P1 |
-| Code writing/editing | Load `coding-standards.md` into Architect prompt | P0 |
-| Migration revert | Follow revert checklist in scaffolding-rules.md | P1 |
+| Build, lint, or typecheck fails | Invoke `skill(build-failure-triage)` | P0 |
+| Same failure appears twice | Stop and switch to root-cause analysis before retrying | P0 |
+| New dependency or framework change is proposed | Invoke `skill(pre-migration-compatibility-check)` before editing | P0 |
+| Code change is requested | Follow `skill(implement-with-validation)` and repo quality gates | P1 |
+| Instruction, agent, or workflow governance files change | Run `python3 scripts/validate_instruction_files.py` and keep instruction layers in sync | P0 |
+| Import or path error appears | Find all occurrences and fix them in one batch | P0 |
+| Repo facts are uncertain | Verify with code or official docs before updating instructions | P0 |
 
----
+## Batch-fix rule
 
-## BATCH FIX RULE (Critical)
+| Step | Action |
+|------|--------|
+| 1 | Search all occurrences before editing |
+| 2 | Fix the full pattern in one commit |
+| 3 | Re-run the smallest reliable validation command |
+| 4 | Only then push or publish |
 
-Before delegating ANY import/path fix:
-1. `grep -r "broken/pattern" src/` to find ALL occurrences
-2. Fix ALL in ONE commit - never one-at-a-time
-3. Verify with `npx react-native bundle --dry-run` locally
-4. THEN push
-
-**Why:** KidCoin had 6 CI failures fixing imports one-at-a-time. Batch fixing = 1 CI run.
-
----
-
-## Circuit Breaker Protocol
+## Circuit breaker
 
 | Attempt | Action |
 |---------|--------|
-| 1 | Try fix with assigned model |
-| 2 (same error) | **STOP** → Invoke skill → Research |
-| 3 (different errors) | **STOP** → Root cause analysis |
-| 4 | **ESCALATE** to human (Touchpoint #3) |
+| 1 | Investigate and try the most likely fix |
+| 2 | Stop repeating tactics and switch to documented troubleshooting |
+| 3 | Escalate to a human decision or narrower scope |
 
----
+## Instruction-governance reminders
 
-## Skill Usage Examples
-
-### Build Failure
-```
-IF: Metro bundler fails with "Unable to resolve module"
-THEN: skill(build-failure-triage)
-- Classify error type
-- Research if 2nd failure
-- Present findings with evidence
-- Wait for user approval
-```
-
-### New Dependency  
-```
-IF: Adding a new package to package.json
-THEN: skill(pre-migration-compatibility-check)
-- Verify platform compatibility
-- Check version conflicts
-- Validate before install
-```
-
-### Import Error Pattern
-```
-IF: CI fails with multiple "Cannot find module 'X'" errors
-THEN:
-1. grep -r "import.*X" src/ → Find ALL 50 occurrences
-2. Delegate to Architect: "Fix all 50 imports in ONE batch"
-3. BuildBot: npm run bundle --dry-run
-4. If pass → git push
-```
-
----
-
-**MDDF v2.0** | Updated 2026-02-07
+- `.copilot/mandate.md` remains the governance source of truth.
+- `.github/copilot-instructions.md` should stay concise and repo-wide.
+- Use `.github/instructions/*.instructions.md` for scoped rules and `.github/agents/*.agent.md` for task-specific personas.

@@ -1,41 +1,35 @@
-# CODING STANDARDS (FIXED)
+# CODING STANDARDS
 
-> These standards are NON-NEGOTIABLE. Cannot be overridden.
-
-## Architecture
+## Core standards
 
 | Category | Standard |
 |----------|----------|
-| Design | React Native component composition (shared UI + screen-level composition) |
-| Styling | React Native `StyleSheet` + themed components (no web-only Tailwind/shadcn assumptions) |
-| Icons | Expo Vector Icons / Material Symbols |
-| Types | TypeScript strict mode (no `any`) |
+| App model | Expo SDK 54 + Expo Router + React Native |
+| Styling | React Native `StyleSheet` + existing themed components |
+| Types | TypeScript strict mode; no `any` without a very specific reason |
+| UI reuse | Prefer shared dashboard and themed components before inventing new patterns |
+| Native workflow | Use Expo-managed prebuild flow when native regeneration is required |
 
-## File Structure
+## File layout
 
-```
-app/             # Expo Router routes and layouts
-components/      # Shared React Native UI components
-hooks/           # Custom React hooks
-contexts/        # Cross-screen state/context providers
-constants/       # App-level constants
-lib/             # Third-party library configurations
-assets/          # Static assets
-src/             # Project-specific assets/modules
-```
+| Path | Purpose |
+|------|---------|
+| `app/` | Expo Router screens and layouts |
+| `components/` | Shared React Native UI |
+| `contexts/`, `hooks/` | State and reusable behavior |
+| `lib/` | Domain helpers and service integrations |
+| `src/types/` | Shared domain types |
 
-## Quality Gates
+## Quality gates
 
-| Tier | Blocks Shipping? | Examples |
-|------|------------------|----------|
-| 🔴 CRITICAL | YES | Security, crashes, build failures |
-| 🟡 WARNING | NO (track) | Type errors, test failures |
-| 🟢 INFO | NO | Formatting, style |
+| Purpose | Command |
+|---------|---------|
+| Lint | `yarn lint` |
+| Typecheck | `yarn typecheck` |
+| Instruction governance | `python3 scripts/validate_instruction_files.py` |
 
-**Milestone Complete = Feature Works** — not perfect code.
+## Style reminders
 
-## Styling Rules
-
-- Prefer `StyleSheet.create` for reusable styles; keep inline style objects minimal.
-- Reuse shared themed components/tokens before introducing one-off styles.
-- No web-only CSS framework assumptions (Tailwind/shadcn/pages).
+- Prefer `StyleSheet.create` for reusable styles; keep inline objects minimal.
+- Avoid web-only assumptions such as Tailwind/shadcn conventions.
+- Update docs and instruction files when commands, workflows, or architectural paths change.

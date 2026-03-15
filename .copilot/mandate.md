@@ -1,120 +1,59 @@
 # Project Mandate
 
-> ⚠️ AI AGENTS: Read this ENTIRE document before ANY action.
-> This project follows MDDF v2.0. Deviations not permitted.
+> Single source of truth for repo governance. Keep this file concise and push detail into linked modules.
 
-===
+## Identity
 
-## Version
-| Field | Value |
-|-------|-------|
-| Created | 2026-02-16 |
-| Updated | 2026-02-18 |
-| Framework | MDDF v2.0 |
-
-===
-
-## Project Identity
 | Field | Value |
 |-------|-------|
 | Name | kidcoin-v3 |
-| Description | Expo React Native family financial education app for South African families. |
-| Tech Stack | Expo SDK 54, React Native, Expo Router, Firebase Auth/Firestore, TypeScript |
+| Product | Expo React Native family financial education app for South African families |
+| Stack | Expo SDK 54, React Native, Expo Router, Firebase Auth/Firestore, TypeScript |
+| Delivery branch | `dev` is the active feature branch and publishes dev APKs |
 
-===
+## Instruction layers
 
-## Auto-Derived Requirements
+| Layer | File or folder | Purpose |
+|-------|----------------|---------|
+| Repo-wide Copilot rules | [`../.github/copilot-instructions.md`](../.github/copilot-instructions.md) | Concise always-on project guidance |
+| Path-specific rules | [`../.github/instructions/`](../.github/instructions/) | Scoped instructions by file type or area |
+| Coding-agent guidance | [`../AGENTS.md`](../AGENTS.md), [`../.github/agents/`](../.github/agents/) | Agent personas and boundaries |
+| MDDF governance modules | [`instructions/`](./instructions/) | Auto-triggers, hierarchy, phases, standards |
+| Historical setup record | [`m0-tasks.md`](./m0-tasks.md) | M0 and M0.5 archive |
 
-> 🤖 These are auto-derived by AI in M0 phase:
+## Mandatory reading order
 
-- Problem statement
-- Target users
-- Core features (MVP)
-- Out of scope items
-- Success criteria
-- Milestones
+1. Read this file.
+2. Read `.github/copilot-instructions.md`.
+3. Read the most relevant `.github/instructions/*.instructions.md` or `.copilot/instructions/*.md`.
+4. For GitHub coding-agent work, also read `AGENTS.md` and any selected `.github/agents/*.agent.md`.
 
-===
-
-## 4-LAYER HIERARCHY
-
-| Layer | Agent | Type | Responsibility |
-|-------|-------|------|----------------|
-| 1 | **OVERSEER** | You | Observe, delegate, enforce |
-| 2 | **Architect** | general-purpose | Write code, architecture |
-| 2 | **BuildBot** | task | Run builds, tests |
-| 3 | **CodeScout** | explore | Research, file search |
-| 3 | **Reviewer** | code-review | Security, quality |
-| 4 | **shrimp-tasks** | MCP Tool | Task tracking |
-
-===
-
-## HUMAN TOUCHPOINTS (Only 3)
-
-| # | When | Action |
-|---|------|--------|
-| 1 | Initial Input | `mddf mandate` ✓ |
-| 2 | PRD Approval | After M0-T5 |
-| 3 | Escalation | Circuit breaker maxed |
-
-**Everything else is autonomous.**
-
-===
-
-## AUTO-TRIGGERS (Mandatory)
+## Non-negotiables
 
 | IF | THEN |
 |----|------|
-| Build fails | `skill(build-failure-triage)` |
-| New dependency | `skill(pre-migration-compatibility-check)` |
-| Code change | `skill(implement-with-validation)` |
-| 2nd identical error | **CIRCUIT BREAKER** |
+| Instruction files change | Update `.github/copilot-instructions.md`, `AGENTS.md`, scoped `.instructions.md` files, and the validator script together |
+| Workflow or command changes | Reflect the change in matching instruction files in the same PR |
+| GitHub agent automation is added | Use documented Copilot issue-assignment or agent-assignment paths only |
+| Android release APK is needed | Prefer GitHub Actions if the local host lacks compatible Android SDK binaries |
+| Repo facts are uncertain | Verify from code or official docs before writing instructions |
 
-===
+## Module map
 
-## CODING STANDARDS (FIXED)
+| Topic | File |
+|-------|------|
+| Auto-triggers | [`instructions/auto-triggers.md`](./instructions/auto-triggers.md) |
+| Coding standards | [`instructions/coding-standards.md`](./instructions/coding-standards.md) |
+| Agent hierarchy | [`instructions/hierarchy.md`](./instructions/hierarchy.md) |
+| Delivery phases | [`instructions/phases.md`](./instructions/phases.md) |
+| Scaffold and native workflow rules | [`instructions/scaffolding-rules.md`](./instructions/scaffolding-rules.md) |
 
-### Architecture
-| Standard | Value |
-|----------|-------|
-| Design | React Native component composition (shared UI components + screen-level composition) |
-| Styling | React Native `StyleSheet` + themed components (no web-only styling assumptions) |
-| Icons | Expo Vector Icons / Material Symbols |
-| Types | TypeScript strict mode (no `any`) |
+## Active state
 
-### File Structure
-```
-app/ (Expo Router route groups/screens)
-components/ (shared RN UI)
-hooks/, contexts/, lib/, constants/, assets/, src/
-```
+| Topic | Status |
+|-------|--------|
+| Delivery phase | M1+ feature delivery |
+| M0 and M0.5 | Historical reference only |
+| Source of truth | This file plus linked modules above |
 
-### Quality Gates
-| Tier | Blocks? | Examples |
-|------|---------|----------|
-| 🔴 CRITICAL | YES | Security, crashes, build fails |
-| 🟡 WARNING | NO | Type errors, test failures |
-| 🟢 INFO | NO | Formatting, style |
-
-===
-
-## PHASES
-
-| Phase | Gate | Description |
-|-------|------|-------------|
-| M0 | PRD approved | Define requirements |
-| M0.5 | **CI GREEN** | Validate scaffold |
-| M1+ | Feature complete | Implementation |
-
-### M0.5 is MANDATORY
-Do NOT skip scaffold validation.
-
-===
-
-## AI Instructions
-
-1. Read mandate.md, then m0-tasks.md
-2. Use shrimp-tasks for all work tracking
-3. Stop at USER APPROVAL tasks
-4. Invoke skills on triggers (see AUTO-TRIGGERS)
-5. Escalate after circuit breaker
+**Rule:** If a top-level instruction file grows beyond its job, split it into a linked module instead of duplicating the text.

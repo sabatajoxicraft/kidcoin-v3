@@ -1,91 +1,30 @@
-# Scaffolding Rules
+# SCAFFOLD AND NATIVE WORKFLOW RULES
 
-## MANDATORY: Use CLI Tools
+## Current repo reality
 
-| Stack | Scaffold Command | NEVER Manually Create |
-|-------|-----------------|----------------------|
-| React Native | `npx react-native init AppName --template react-native-template-typescript` | android/, ios/, package.json |
-| Next.js | `npx create-next-app@latest` | next.config.js, package.json |
-| Vite | `npm create vite@latest` | vite.config.ts |
-| Remix | `npx create-remix@latest` | remix.config.js |
+| Area | Approved path | Avoid |
+|------|---------------|-------|
+| Existing app scaffold | Keep the Expo-managed app already in this repo | Replacing it with `npx react-native init` |
+| Native regeneration | `npx expo prebuild --platform android` or `ios` | Hand-creating native folders from scratch |
+| Clone Android build | `KIDCOIN_APP_VARIANT=clone npx expo prebuild --platform android --clean` | Ad-hoc clone-specific native edits without documenting them |
 
----
+## Release guidance
 
-## Config Error Response
+| Situation | Guidance |
+|-----------|----------|
+| Local host has compatible Android build tools | A local release build may be used |
+| Local host is incompatible (for example aarch64 host with x86_64 Android build tools) | Use GitHub Actions as the trusted APK build path |
+| CI or native config changes | Update instruction files and workflow docs in the same PR |
 
-IF config/build error from scaffold THEN:
-1. **DELETE** the broken scaffold folder
-2. **RE-SCAFFOLD** using the CLI command above
-3. **DO NOT** manually fix config files
-4. **DO NOT** chase cascading errors
+## Import and migration hygiene
 
----
+| Rule | Action |
+|------|--------|
+| Import/path pattern is broken | Search all occurrences first, then fix in one batch |
+| Framework migration or revert is attempted | Verify all imports and rerun the smallest reliable validation command |
+| Native workflow changes | Prefer documented Expo commands over manual native folder surgery |
 
-## Why This Matters
+## Validation reminders
 
-Manual config file creation leads to:
-- Version mismatches
-- Missing peer dependencies
-- Incorrect native configurations
-- Cascading build failures
-
-CLI scaffolding ensures:
-- Correct dependency versions
-- Proper native setup (android/, ios/)
-- Working build configurations
-- Tested project templates
-
----
-
-## Migration Revert Checklist
-
-When reverting a migration (e.g., TanStack Router → React Navigation):
-
-1. **Find ALL imports** of the old package:
-   ```bash
-   grep -r "@old-package" src/ --include="*.tsx" --include="*.ts"
-   ```
-
-2. **Fix ALL occurrences in ONE commit** - not one-at-a-time
-
-3. **Verify zero matches** before pushing:
-   ```bash
-   grep -r "@old-package" src/ && echo "STILL HAS IMPORTS" || echo "CLEAN"
-   ```
-
-4. **Run bundle check** (React Native):
-   ```bash
-   timeout 60 npx react-native bundle --platform android --dev false \
-     --entry-file index.js --bundle-output /tmp/test.js
-   ```
-
----
-
-## Pre-Push Validation (React Native)
-
-Before pushing, verify Metro can resolve all imports:
-
-```bash
-# Quick bundle check (catches import errors)
-timeout 60 npx react-native bundle --platform android --dev false \
-  --entry-file index.js --bundle-output /tmp/test.js --reset-cache
-
-# If this fails, DO NOT push - fix locally first
-```
-
-This takes 60 seconds vs 10+ minutes in CI.
-
----
-
-## Batch Fix Pattern
-
-When fixing import errors:
-
-1. **NEVER** fix one file and push
-2. **ALWAYS** search for pattern across codebase first:
-   ```bash
-   grep -r "broken/path" src/
-   ```
-3. Fix ALL occurrences in ONE commit
-4. Verify with bundle check
-5. THEN push
+- Use repo scripts and GitHub workflows as the authoritative path when available.
+- Do not document scaffold commands that contradict the current Expo-based repository.

@@ -1,0 +1,207 @@
+name: Instruction Governance
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+      - master
+    paths:
+      - '.github/copilot-instructions.md'
+      - '.github/instructions/**'
+      - '.github/agents/**'
+      - '.github/workflows/instruction-governance.yml'
+      - '.copilot/**'
+      - 'AGENTS.md'
+      - 'scripts/validate_instruction_files.py'
+  pull_request:
+    paths:
+      - '.github/copilot-instructions.md'
+      - '.github/instructions/**'
+      - '.github/agents/**'
+      - '.github/workflows/instruction-governance.yml'
+      - '.copilot/**'
+      - 'AGENTS.md'
+      - 'scripts/validate_instruction_files.py'
+  workflow_dispatch:
+    inputs:
+      assign_to_copilot:
+        description: 'Create an issue and assign it to Copilot after the audit passes'
+        required: false
+        default: false
+        type: boolean
+      base_branch:
+        description: 'Branch Copilot should branch from when assigned an issue'
+        required: false
+        default: 'dev'
+        type: string
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validate instruction files
+        run: |
+          python3 scripts/validate_instruction_files.py \
+            --report-path .artifacts/instruction-audit.md \
+            --json-path .artifacts/instruction-audit.json
+
+      - name: Publish step summary
+        run: cat .artifacts/instruction-audit.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: instruction-governance-report
+          path: .artifacts/
+
+  assign_copilot:
+    runs-on: ubuntu-latest
+    needs: audit
+    if: github.event_name == 'workflow_dispatch' && inputs.assign_to_copilot
+    permissions:
+      actions: write
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Regenerate governance report
+        run: |
+          python3 scripts/validate_instruction_files.py \
+            --report-path .artifacts/instruction-audit.md \
+            --json-path .artifacts/instruction-audit.json
+
+      - name: Create issue and assign to Copilot
+        env:
+          GH_TOKEN: ${{ secrets.GH_AW_AGENT_TOKEN }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "GH_AW_AGENT_TOKEN is not configured; skipping Copilot assignment." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          report = Path(".artifacts/instruction-audit.md").read_text(encoding="utf-8")
+          body = f"""# Instruction governance refresh
+
+          Please audit and improve the repository's instruction and agent files.
+
+          ## Source of truth
+          - `.copilot/mandate.md`
+          - `.github/copilot-instructions.md`
+          - `.github/instructions/*.instructions.md`
+          - `AGENTS.md`
+          - `.github/agents/*.agent.md`
+
+          ## Required output
+          - Open a pull request with the proposed instruction refresh
+          - Summarize what changed, why it changed, and what validation ran
+          - Keep top-level instruction files concise and remove duplicated guidance
+
+          ## Current audit report
+          {report}
+          """
+          Path(".artifacts/copilot-issue-body.md").write_text(body, encoding="utf-8")
+          PY
+
+          repo_json=$(gh api graphql -f query='
+            query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                id
+                suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
+                  nodes {
+                    ... on Bot { id login }
+                    ... on User { id login }
+                  }
+                }
+              }
+            }' \
+            -f owner="${GITHUB_REPOSITORY_OWNER}" \
+            -f name="${GITHUB_REPOSITORY#*/}" \
+            -H 'GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection')
+
+          REPO_ID=$(python3 - <<'PY' "$repo_json"
+          import json, sys
+          print(json.loads(sys.argv[1])["data"]["repository"]["id"])
+          PY
+          )
+          BOT_ID=$(python3 - <<'PY' "$repo_json"
+          import json, sys
+          nodes = json.loads(sys.argv[1])["data"]["repository"]["suggestedActors"]["nodes"]
+          for node in nodes:
+              if node.get("login") == "copilot-swe-agent":
+                  print(node["id"])
+                  break
+          PY
+          )
+
+          if [ -z "${BOT_ID:-}" ]; then
+            echo "Copilot is not available as an assignable actor for this repository." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          ISSUE_TITLE="Instruction governance refresh"
+          ISSUE_BODY=$(cat .artifacts/copilot-issue-body.md)
+          CUSTOM_INSTRUCTIONS="Read .copilot/mandate.md, .github/copilot-instructions.md, AGENTS.md, and .github/instructions/instruction-governance.instructions.md before editing. Keep .copilot/mandate.md as the source of truth, keep top-level instruction files concise, run python3 scripts/validate_instruction_files.py, and report back through the PR summary."
+
+          result=$(gh api graphql -f query='
+            mutation(
+              $repositoryId: ID!,
+              $assigneeId: ID!,
+              $title: String!,
+              $body: String!,
+              $baseRef: String!,
+              $customInstructions: String!
+            ) {
+              createIssue(input: {
+                repositoryId: $repositoryId,
+                title: $title,
+                body: $body,
+                assigneeIds: [$assigneeId],
+                agentAssignment: {
+                  targetRepositoryId: $repositoryId,
+                  baseRef: $baseRef,
+                  customInstructions: $customInstructions
+                }
+              }) {
+                issue {
+                  number
+                  url
+                }
+              }
+            }' \
+            -f repositoryId="$REPO_ID" \
+            -f assigneeId="$BOT_ID" \
+            -f title="$ISSUE_TITLE" \
+            -f body="$ISSUE_BODY" \
+            -f baseRef="$BASE_BRANCH" \
+            -f customInstructions="$CUSTOM_INSTRUCTIONS" \
+            -H 'GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection')
+
+          ISSUE_URL=$(python3 - <<'PY' "$result"
+          import json, sys
+          print(json.loads(sys.argv[1])["data"]["createIssue"]["issue"]["url"])
+          PY
+          )
+
+          echo "Created and assigned Copilot issue: $ISSUE_URL" >> "$GITHUB_STEP_SUMMARY"

@@ -1,137 +1,48 @@
-# MDDF v2.0 Instructions
+# KidCoin v3 Copilot Instructions
 
-> Mandate-driven development. OVERSEER coordinates. Agents execute.
+KidCoin v3 is an Expo React Native family financial education app. Parents manage tasks, payouts, announcements, reporting, and family settings; children earn points, submit evidence, request payouts, and work through lessons and goals.
 
----
+## Stack
 
-## ROLE: OVERSEER
+| Area | Value |
+|------|-------|
+| Mobile app | Expo SDK 54, React Native 0.81, Expo Router |
+| Backend | Firebase Auth, Firestore, Storage, Cloud Functions |
+| Language | TypeScript strict mode |
+| UI style | React Native `StyleSheet` + themed wrappers |
+| CI | GitHub Actions in `.github/workflows/` |
 
-You coordinate. You NEVER code, build, or debug directly.
+## Validate changes
 
----
+| Purpose | Command | Notes |
+|---------|---------|-------|
+| Install deps | `yarn install` | CI uses Yarn |
+| Lint | `yarn lint` | `expo lint` under the hood |
+| Typecheck | `yarn typecheck` | `tsc --noEmit` |
+| Instruction audit | `python3 scripts/validate_instruction_files.py` | Run after editing instruction, agent, or workflow files |
+| Android APK release path | Push to `dev` | `.github/workflows/android-build.yml` publishes `latest-dev-apk` |
 
-## AGENT HIERARCHY
+## Architecture map
 
-| Layer | Agent | Responsibility | Spawn Via |
-|-------|-------|----------------|-----------|
-| 1 | OVERSEER (You) | Delegate only | - |
-| 2 | Architect | Code changes | `task(general-purpose)` |
-| 2 | BuildBot | Build/test/CI | `task(task)` |
-| 3 | CodeScout | File search | `task(explore)` × 3-5 parallel |
-| 3 | Reviewer | Security/quality | `task(code-review)` |
+| Area | Paths | Notes |
+|------|-------|-------|
+| Routes | `app/` | Expo Router route groups for parent, child, auth, setup |
+| Shared UI | `components/` | Dashboard and themed components live here |
+| State | `contexts/`, `hooks/` | Family, auth, task, lesson contexts |
+| Domain helpers | `lib/`, `src/types/` | Firebase services, business logic, shared types |
+| Repo governance | `.copilot/`, `.github/`, `AGENTS.md` | Keep these files aligned |
 
----
+## Source of truth
 
-## 🚫 OVERSEER BLOCKERS
+- Treat [`../.copilot/mandate.md`](../.copilot/mandate.md) as the repo governance source of truth.
+- Keep this file concise and repo-wide only.
+- Put scoped rules in `.github/instructions/*.instructions.md`.
+- Put coding-agent personas in `AGENTS.md` and `.github/agents/*.agent.md`.
+- If commands, workflows, or architecture paths change, update the matching instruction files in the same change.
 
-| IF OVERSEER Attempts | THEN |
-|---------------------|------|
-| Edit any file | **STOP** → Delegate to Architect |
-| Run build/test command | **STOP** → Delegate to BuildBot |
-| Fix error manually | **STOP** → Invoke skill first |
-| Create code | **STOP** → Delegate to Architect |
-| Debug iteratively | **STOP** → After 2nd error invoke skill |
+## Repo-specific rules
 
----
-
-## ✅ OVERSEER ALLOWED
-
-| Action | How |
-|--------|-----|
-| Create/update tasks | shrimp-tasks OR update_todo |
-| Spawn agents | task() tool |
-| Read files | view/grep/glob tools |
-| Observe CI status | gh run list |
-| Ask user | ask_user tool |
-
----
-
-## AUTO-TRIGGERS (Mandatory)
-
-| IF | THEN | Priority |
-|----|------|----------|
-| Build/test fails | `skill(build-failure-triage)` | P0 |
-| 2nd identical error | **CIRCUIT BREAKER** → Research → User | P0 |
-| Scaffold task | Include CLI rule in prompt (see below) | P0 |
-| Import/path error | Search ALL files for pattern, fix in batch | P0 |
-| New dependency | `skill(pre-migration-compatibility-check)` | P1 |
-| Code exploration | Launch 3-5 CodeScouts parallel | P1 |
-| Migration revert | Follow revert checklist in scaffolding-rules.md | P1 |
-
----
-
-## BATCH FIX RULE (Critical)
-
-Before delegating ANY import/path fix:
-1. `grep -r "broken/pattern" src/` to find ALL occurrences
-2. Fix ALL in ONE commit - never one-at-a-time
-3. Verify with `npx react-native bundle --dry-run` locally
-4. THEN push
-
-**Why:** KidCoin had 6 CI failures fixing imports one-at-a-time. Batch fixing = 1 CI run.
-
----
-
-## SCAFFOLD DELEGATION TEMPLATE
-
-When delegating scaffold tasks, ALWAYS include:
-
-```
-**CRITICAL:** Use CLI scaffolding tools. Do NOT manually create files.
-
-For React Native: `npx react-native init {AppName} --template react-native-template-typescript`
-For Next.js: `npx create-next-app@latest {AppName} --typescript`
-For Expo: ❌ BANNED - Do not use
-
-If CLI fails, STOP and report. Do NOT manually create android/, ios/, package.json.
-```
-
----
-
-## PARALLEL EXECUTION CHECKLIST
-
-Before delegating, check:
-- [ ] Multiple independent searches? → Launch ALL CodeScouts in ONE response
-- [ ] Multiple independent edits? → Architect can batch in ONE response
-- [ ] Independent builds? → BuildBot can chain with &&
-
----
-
-## TOOL FALLBACKS
-
-| Tool | Fallback | When |
-|------|----------|------|
-| shrimp-tasks | update_todo | If errors 2x or Chinese responses |
-| gh CLI | GitHub MCP tools | If gh errors |
-
----
-
-## PHASES
-
-| Phase | Gate | Proceed When |
-|-------|------|--------------|
-| M0 | PRD Approved | User says "approved" |
-| M0.5 | CI GREEN | All GitHub Actions pass |
-| M1+ | Feature Complete | Tests pass, reviewed |
-
----
-
-## BEFORE ANY ACTION
-
-1. Read `.copilot/mandate.md` (source of truth)
-2. Check current tasks (shrimp-tasks OR update_todo)
-3. Does action serve current milestone? → YES: Delegate | NO: STOP
-
----
-
-## HUMAN TOUCHPOINTS (Only 3)
-
-1. `mddf mandate` approval
-2. After M0-T5 (PRD review)
-3. Circuit breaker maxed (3rd failure)
-
-**Everything else is autonomous.**
-
----
-
-**MDDF v2.0** | Validated 2026-02-05
+- Follow the Expo-managed workflow already used by this repo; do not replace it with a vanilla React Native scaffold.
+- Prefer React Native `StyleSheet` and existing themed components over new styling systems.
+- Use GitHub-documented Copilot automation only. For agent assignment automation, require the documented PAT/secret flow instead of embedding credentials or inventing unsupported steps.
+- When local Android build tools are host-incompatible, treat the GitHub Actions APK pipeline as the trusted build path.
