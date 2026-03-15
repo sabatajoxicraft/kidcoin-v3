@@ -1,12 +1,13 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import * as Crypto from 'expo-crypto';
 import { useAuth } from '@/hooks/use-auth';
-import type { Family, FamilySettings, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
+import type { Family, FamilyMember, FamilyMemberRole, FamilySettings, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
 import {
   createFamily as createFamilyService,
   addChild as addChildService,
   getFamilyWithChildren,
   getUserProfile,
+  subscribeFamilyMember,
   subscribeFamilyWithChildren,
   subscribeUserProfile,
   updateChildWeeklyAllowance as updateChildWeeklyAllowanceService,
@@ -21,9 +22,13 @@ import {
 interface FamilyContextType {
   family: Family | null;
   userProfile: UserProfile | null;
+  /** Membership record from families/{familyId}/members/{userId}, or null if not yet loaded / absent. */
+  familyMember: FamilyMember | null;
   children: ChildProfile[];
   activeChildId: string | null;
   activeChild: ChildProfile | null;
+  /** Base role resolved from membership record, falling back to legacy userProfile.role. */
+  baseRole: 'parent' | 'child';
   effectiveRole: 'parent' | 'child';
   effectiveUserProfile: UserProfile | ChildProfile | null;
   hasFamily: boolean;
@@ -40,6 +45,11 @@ interface FamilyContextType {
 
 const FamilyContext = createContext<FamilyContextType | undefined>(undefined);
 
+/** Map a membership role to the legacy app-level role used in routing and gates. */
+function memberRoleToAppRole(memberRole: FamilyMemberRole): 'parent' | 'child' {
+  return memberRole === 'child' ? 'child' : 'parent';
+}
+
 export function FamilyProvider({ children: reactChildren }: { children: React.ReactNode }) {
   const { user, initializing } = useAuth();
   const [family, setFamily] = useState<Family | null>(null);
@@ -50,6 +60,7 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
   // Stays true until the one-time child-mode restore attempt has completed,
   // preventing _layout.tsx from routing before we know whether to land in child mode.
   const [isRestoringChildMode, setIsRestoringChildMode] = useState(true);
+  const [familyMember, setFamilyMember] = useState<FamilyMember | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Subscribe to the authenticated user's own profile.
@@ -117,6 +128,31 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
     );
     return () => { active = false; unsubscribe(); };
   }, [userProfile?.familyId]);
+
+  // Subscribe to the signed-in user's own membership record so we can resolve
+  // their base family role from the members sub-collection.
+  useEffect(() => {
+    if (!user || !userProfile?.familyId) {
+      setFamilyMember(null);
+      return;
+    }
+    let active = true;
+    const unsubscribe = subscribeFamilyMember(
+      userProfile.familyId,
+      user.uid,
+      (member) => {
+        if (!active) return;
+        setFamilyMember(member);
+      },
+      (err) => {
+        if (!active) return;
+        // Non-fatal: we fall back to userProfile.role when no member record exists.
+        console.warn('[FamilyContext] member record listener error:', err);
+        setFamilyMember(null);
+      },
+    );
+    return () => { active = false; unsubscribe(); };
+  }, [user, userProfile?.familyId]);
 
   // Reset activeChildId whenever the family or authenticated user changes so
   // stale child-mode sessions cannot persist across identity switches.
@@ -214,7 +250,7 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
   };
 
   const enterChildMode = async (childId: string, pin: string) => {
-    if (!user || !userProfile?.familyId || userProfile.role !== 'parent') {
+    if (!user || !userProfile?.familyId || baseRole !== 'parent') {
       throw new Error('Only parents can enter child mode');
     }
 
@@ -245,7 +281,7 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
 
   const updateChildWeeklyAllowance = async (childId: string, weeklyAllowancePoints: number) => {
     if (!userProfile?.familyId) throw new Error('No family');
-    if (userProfile.role !== 'parent' || activeChildId !== null) {
+    if (baseRole !== 'parent' || activeChildId !== null) {
       throw new Error('Only parents can update weekly allowance');
     }
     await updateChildWeeklyAllowanceService(userProfile.familyId, childId, weeklyAllowancePoints);
@@ -253,7 +289,7 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
 
   const updateFamilySettings = async (settings: Partial<FamilySettings>) => {
     if (!family?.id) throw new Error('No family');
-    if (userProfile?.role !== 'parent' || activeChildId !== null) {
+    if (baseRole !== 'parent' || activeChildId !== null) {
       throw new Error('Only parents can update family settings');
     }
     await updateFamilySettingsService(family.id, settings);
@@ -265,7 +301,11 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
     () => children.find((child) => child.id === activeChildId) ?? null,
     [activeChildId, children],
   );
-  const effectiveRole: 'parent' | 'child' = activeChild ? 'child' : (userProfile?.role ?? 'parent');
+  // Resolve base role: membership record first, legacy profile fallback.
+  const baseRole: 'parent' | 'child' = familyMember
+    ? memberRoleToAppRole(familyMember.role)
+    : (userProfile?.role ?? 'parent');
+  const effectiveRole: 'parent' | 'child' = activeChild ? 'child' : baseRole;
   const effectiveUserProfile = activeChild ?? userProfile ?? null;
 
   return (
@@ -273,9 +313,11 @@ export function FamilyProvider({ children: reactChildren }: { children: React.Re
       value={{
         family,
         userProfile,
+        familyMember,
         children,
         activeChildId,
         activeChild,
+        baseRole,
         effectiveRole,
         effectiveUserProfile,
         hasFamily,
@@ -301,4 +343,10 @@ export function useFamily() {
     throw new Error('useFamily must be used within a FamilyProvider');
   }
   return context;
+}
+
+/** Convenience hook to access just the membership record from FamilyContext. */
+export function useFamilyMember() {
+  const { familyMember } = useFamily();
+  return familyMember;
 }

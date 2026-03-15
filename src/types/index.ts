@@ -204,6 +204,35 @@ export interface Announcement {
   archivedAt?: Date;
 }
 
+// ─── Family Membership (Phase C) ─────────────────────────────
+
+/** Roles a family member can hold. `adult_manager` is reserved for Phase D. */
+export type FamilyMemberRole = 'host_parent' | 'child';
+
+/** Lifecycle state of a family membership record. */
+export type FamilyMemberStatus = 'active' | 'invited' | 'removed';
+
+/**
+ * Membership record stored at `families/{familyId}/members/{userId}`.
+ * The document ID is the userId — no extra lookup needed for existence checks.
+ *
+ * Phase C populates `userId`, `role`, `status`, and `joinedAt`.
+ * The optional fields are modelled now so Phase D can extend without a schema change.
+ */
+export interface FamilyMember {
+  userId: string;
+  role: FamilyMemberRole;
+  status: FamilyMemberStatus;
+  /** ISO-8601 timestamp; set on activation, not invite. */
+  joinedAt: string;
+  /** ISO-8601 timestamp; set when an invite is issued (Phase D+). */
+  invitedAt?: string;
+  /** ISO-8601 timestamp; set on soft-removal (Phase D+). */
+  removedAt?: string;
+  /** userId of the adult who issued the invite (Phase D+). */
+  invitedBy?: string;
+}
+
 export type PayoutRequestStatus = 'pending' | 'approved' | 'rejected';
 
 export interface PayoutRequest {

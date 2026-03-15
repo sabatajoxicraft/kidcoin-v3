@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isFamilyOwner(familyId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/families/$(familyId)).data.ownerId == request.auth.uid;
+    }
+
+    function isFamilyOwnerAfter(familyId) {
+      return isSignedIn()
+        && getAfter(/databases/$(database)/documents/families/$(familyId)).data.ownerId == request.auth.uid;
+    }
+
+    function hasValidMemberRole() {
+      return request.resource.data.role == 'host_parent'
+        || request.resource.data.role == 'child';
+    }
+
+    function hasValidMemberStatus() {
+      return request.resource.data.status == 'active'
+        || request.resource.data.status == 'invited'
+        || request.resource.data.status == 'removed';
+    }
+
+    function isValidFamilyMember(memberId) {
+      return request.resource.data.userId == memberId
+        && request.resource.data.joinedAt is string
+        && hasValidMemberRole()
+        && hasValidMemberStatus();
+    }
+
+    match /users/{userId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /families/{familyId} {
+      allow read, write: if isSignedIn();
+
+      match /members/{memberId} {
+        allow read: if isFamilyOwner(familyId);
+        allow create, update: if isFamilyOwnerAfter(familyId) && isValidFamilyMember(memberId);
+        allow delete: if isFamilyOwnerAfter(familyId);
+      }
+    }
+
+    match /tasks/{taskId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /payoutRequests/{requestId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /pointTransactions/{transactionId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /savingsGoals/{goalId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /announcements/{announcementId} {
+      allow read, write: if isSignedIn();
+    }
+  }
+}

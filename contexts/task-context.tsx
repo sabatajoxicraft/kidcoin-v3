@@ -52,7 +52,7 @@ const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
 export function TaskProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  const { userProfile, effectiveRole, effectiveUserProfile, refreshFamily } = useFamily();
+  const { userProfile, baseRole, effectiveRole, effectiveUserProfile, refreshFamily } = useFamily();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [transactions, setTransactions] = useState<PointTransaction[]>([]);
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
@@ -236,7 +236,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
 
   const createTask = async (input: CreateTaskInput) => {
     if (!user || !userProfile?.familyId) throw new Error('Family context is not ready');
-    if (userProfile.role !== 'parent' || effectiveRole !== 'parent') {
+    if (baseRole !== 'parent' || effectiveRole !== 'parent') {
       throw new Error('Only parents can create tasks');
     }
     const familyId = userProfile.familyId;
@@ -413,7 +413,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
 
   const reviewTask = async (taskId: string, decision: 'approved' | 'returned', feedback?: string) => {
     if (!user || !userProfile?.familyId) throw new Error('Family context is not ready');
-    if (userProfile.role !== 'parent' || effectiveRole !== 'parent') {
+    if (baseRole !== 'parent' || effectiveRole !== 'parent') {
       throw new Error('Only parents can review tasks');
     }
 
@@ -446,7 +446,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
     reviewNote?: string,
   ) => {
     if (!user || !userProfile?.familyId) throw new Error('Family context is not ready');
-    if (userProfile.role !== 'parent' || effectiveRole !== 'parent') {
+    if (baseRole !== 'parent' || effectiveRole !== 'parent') {
       throw new Error('Only parents can review payout requests');
     }
 

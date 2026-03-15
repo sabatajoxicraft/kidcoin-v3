@@ -1,7 +1,7 @@
-import { doc, getDoc, setDoc, collection, query, where, getDocs, onSnapshot, Timestamp, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot, Timestamp, updateDoc, deleteField, writeBatch } from 'firebase/firestore';
 import * as Crypto from 'expo-crypto';
 import { db } from '@/lib/firebase';
-import type { Family, FamilySettings, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
+import type { Family, FamilyMember, FamilySettings, UserProfile, ChildProfile, AgeGroup } from '@/src/types';
 import { isSupportedCurrency } from '@/lib/currency';
 
 const DEFAULT_SETTINGS: Required<FamilySettings> = {
@@ -28,17 +28,27 @@ export async function createFamily(
   currencyCode?: string,
 ): Promise<Family> {
   const familyRef = doc(collection(db, 'families'));
+  const now = new Date();
   const family: Family = {
     id: familyRef.id,
     name: familyName,
     ownerId,
-    createdAt: new Date(),
+    createdAt: now,
     settings: normalizeFamilySettings({
       currencyCode: currencyCode && isSupportedCurrency(currencyCode) ? currencyCode : 'ZAR',
     }),
   };
-  await setDoc(familyRef, family);
-  await setDoc(
+
+  const ownerMember: FamilyMember = {
+    userId: ownerId,
+    role: 'host_parent',
+    status: 'active',
+    joinedAt: now.toISOString(),
+  };
+
+  const batch = writeBatch(db);
+  batch.set(familyRef, family);
+  batch.set(
     doc(db, 'users', ownerId),
     {
       id: ownerId,
@@ -46,10 +56,13 @@ export async function createFamily(
       email: ownerEmail,
       role: 'parent',
       familyId: familyRef.id,
-      createdAt: new Date(),
+      createdAt: now,
     },
     { merge: true },
   );
+  batch.set(doc(db, 'families', familyRef.id, 'members', ownerId), ownerMember);
+  await batch.commit();
+
   return family;
 }
 
@@ -89,6 +102,7 @@ export async function addChild(
 ): Promise<ChildProfile> {
   const pinHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, pin);
   const childRef = doc(collection(db, 'users'));
+  const now = new Date();
   const child: ChildProfile = {
     id: childRef.id,
     displayName,
@@ -98,10 +112,66 @@ export async function addChild(
     ageGroup,
     pinHash,
     points: 0,
-    createdAt: new Date(),
+    createdAt: now,
   };
-  await setDoc(childRef, child);
+
+  const childMember: FamilyMember = {
+    userId: childRef.id,
+    role: 'child',
+    status: 'active',
+    joinedAt: now.toISOString(),
+  };
+
+  const batch = writeBatch(db);
+  batch.set(childRef, child);
+  batch.set(doc(db, 'families', familyId, 'members', childRef.id), childMember);
+  await batch.commit();
+
   return child;
+}
+
+/**
+ * Returns all membership records for a family.
+ * Minimal read helper for the next Phase C slice; callers should still
+ * fall back to legacy `UserProfile.role` when no record exists.
+ */
+export async function getFamilyMembers(familyId: string): Promise<FamilyMember[]> {
+  const snap = await getDocs(collection(db, 'families', familyId, 'members'));
+  return snap.docs.map((d) => d.data() as FamilyMember);
+}
+
+/**
+ * Subscribes to a single family membership record.
+ * Used by FamilyContext to resolve the signed-in user's base role from
+ * the members sub-collection before falling back to legacy userProfile.role.
+ */
+export function subscribeFamilyMember(
+  familyId: string,
+  userId: string,
+  onUpdate: (member: FamilyMember | null) => void,
+  onError: (error: Error) => void,
+): () => void {
+  return onSnapshot(
+    doc(db, 'families', familyId, 'members', userId),
+    (snap) => {
+      if (!snap.exists()) {
+        onUpdate(null);
+        return;
+      }
+      onUpdate(snap.data() as FamilyMember);
+    },
+    (error) => onError(error),
+  );
+}
+
+/** Hydrates a ChildProfile from a raw Firestore user document snapshot data object. */
+function hydrateChildProfile(cd: Record<string, unknown>): ChildProfile {
+  return {
+    ...(cd as Omit<ChildProfile, 'createdAt'>),
+    createdAt: cd.createdAt instanceof Timestamp ? (cd.createdAt as Timestamp).toDate() : (cd.createdAt as Date),
+    pendingPayoutPoints: typeof cd.pendingPayoutPoints === 'number' ? cd.pendingPayoutPoints : 0,
+    weeklyAllowancePoints: typeof cd.weeklyAllowancePoints === 'number' ? cd.weeklyAllowancePoints : undefined,
+  };
 }
 
 export async function getFamilyWithChildren(
@@ -117,18 +187,51 @@ export async function getFamilyWithChildren(
     settings: normalizeFamilySettings(data.settings as Partial<FamilySettings> | undefined),
   };
 
-  const childrenSnap = await getDocs(
+  // Membership-aware child discovery. Fall back to legacy children if member
+  // reads are unavailable during rollout before rules/backfill are in place.
+  let activeChildIds: string[] = [];
+  try {
+    const membersSnap = await getDocs(collection(db, 'families', familyId, 'members'));
+    activeChildIds = membersSnap.docs
+      .map((d) => d.data() as FamilyMember)
+      .filter((m) => m.role === 'child' && m.status === 'active')
+      .map((m) => m.userId);
+  } catch (error) {
+    console.warn('[family-service] getFamilyWithChildren members read failed, falling back to legacy:', error);
+  }
+
+  // Always fetch both sources for backfill compatibility
+  const legacySnap = await getDocs(
     query(collection(db, 'users'), where('familyId', '==', familyId), where('role', '==', 'child')),
   );
-  const children: ChildProfile[] = childrenSnap.docs.map((d) => {
-    const cd = d.data();
-    return {
-      ...(cd as Omit<ChildProfile, 'createdAt'>),
-      createdAt: cd.createdAt instanceof Timestamp ? cd.createdAt.toDate() : (cd.createdAt as Date),
-      pendingPayoutPoints: typeof cd.pendingPayoutPoints === 'number' ? cd.pendingPayoutPoints : 0,
-      weeklyAllowancePoints: typeof cd.weeklyAllowancePoints === 'number' ? cd.weeklyAllowancePoints : undefined,
-    };
-  });
+  const legacyChildren = legacySnap.docs.map((d) => hydrateChildProfile(d.data() as Record<string, unknown>));
+  const legacyById = new Map(legacyChildren.map((c) => [c.id, c]));
+
+  // Fetch user docs for membership children not already covered by legacy query
+  const missingIds = activeChildIds.filter((id) => !legacyById.has(id));
+  const extraSnaps = await Promise.all(missingIds.map((id) => getDoc(doc(db, 'users', id))));
+  const memberOnlyChildren = extraSnaps.reduce<ChildProfile[]>((acc, snap, i) => {
+    const childId = missingIds[i];
+    if (!snap.exists()) {
+      console.warn(`[family-service] member ${childId} has no user doc; skipping`);
+      return acc;
+    }
+    const cd = snap.data() as Record<string, unknown>;
+    if (cd.role !== 'child') {
+      console.warn(`[family-service] member ${childId} user doc role is "${cd.role}", expected "child"; skipping`);
+      return acc;
+    }
+    acc.push(hydrateChildProfile(cd));
+    return acc;
+  }, []);
+
+  // Merge: membership-backed children + legacy children not in membership set
+  const memberIdSet = new Set(activeChildIds);
+  const children = [
+    ...legacyChildren.filter((c) => !memberIdSet.has(c.id)),
+    ...legacyChildren.filter((c) => memberIdSet.has(c.id)),
+    ...memberOnlyChildren,
+  ];
 
   return { family, children };
 }
@@ -200,7 +303,8 @@ export function subscribeUserProfile(
  * Subscribes to the family document and the children collection simultaneously.
  * Emits only once both listeners have produced their first snapshot.
  * Subsequent emissions occur whenever either source changes.
- * Returns an unsubscribe function that tears down both listeners.
+ * Uses membership-aware per-child listeners with a legacy query fallback.
+ * Returns an unsubscribe function that tears down all listeners.
  */
 export function subscribeFamilyWithChildren(
   familyId: string,
@@ -208,23 +312,149 @@ export function subscribeFamilyWithChildren(
   onError: (error: Error) => void,
 ): () => void {
   let latestFamily: Family | null = null;
-  let latestChildren: ChildProfile[] | null = null;
+  let legacyChildren: ChildProfile[] | null = null;
 
-  function tryEmit(): void {
-    if (latestFamily !== null && latestChildren !== null) {
-      onUpdate({ family: latestFamily, children: latestChildren });
+  // Per-child listener strategy state
+  const perChildUnsubs = new Map<string, () => void>();
+  const perChildProfiles = new Map<string, ChildProfile>();
+  const readyChildIds = new Set<string>();
+  let activeChildIds = new Set<string>();
+
+  let unsubLegacy: (() => void) | null = null;
+
+  // Members listener
+  let unsubMembers: (() => void) | null = null;
+
+  // unsubFamily is assigned later; used by cleanup
+  let unsubFamily!: () => void;
+
+  function mergeAndEmit(): void {
+    if (latestFamily === null || legacyChildren === null) return;
+    const memberIdSet = new Set(perChildProfiles.keys());
+    const merged = [
+      ...legacyChildren.filter((c) => !memberIdSet.has(c.id)),
+      ...Array.from(perChildProfiles.values()),
+    ];
+    onUpdate({ family: latestFamily, children: merged });
+  }
+
+  function allActiveChildrenReady(): boolean {
+    for (const id of activeChildIds) {
+      if (!readyChildIds.has(id)) return false;
+    }
+    return true;
+  }
+
+  function emitChildren(): void {
+    mergeAndEmit();
+  }
+
+  function teardownPerChildListeners(): void {
+    for (const unsub of perChildUnsubs.values()) unsub();
+    perChildUnsubs.clear();
+    perChildProfiles.clear();
+    readyChildIds.clear();
+    activeChildIds = new Set<string>();
+  }
+
+  function reconcileChildListeners(newChildIds: string[]): void {
+    const newSet = new Set(newChildIds);
+
+    // Remove listeners for children no longer active
+    for (const id of perChildUnsubs.keys()) {
+      if (!newSet.has(id)) {
+        perChildUnsubs.get(id)!();
+        perChildUnsubs.delete(id);
+        perChildProfiles.delete(id);
+        readyChildIds.delete(id);
+      }
+    }
+
+    // Add listeners for newly active children
+    for (const childId of newChildIds) {
+      if (!perChildUnsubs.has(childId)) {
+        const unsub = onSnapshot(
+          doc(db, 'users', childId),
+          (snap) => {
+            if (!snap.exists()) {
+              console.warn(`[family-service] per-child listener: member ${childId} has no user doc; skipping`);
+              perChildProfiles.delete(childId);
+            } else {
+              const cd = snap.data() as Record<string, unknown>;
+              if (cd.role !== 'child') {
+                console.warn(`[family-service] per-child listener: member ${childId} user doc role is "${cd.role}", expected "child"; skipping`);
+                perChildProfiles.delete(childId);
+              } else {
+                perChildProfiles.set(childId, hydrateChildProfile(cd));
+              }
+            }
+            readyChildIds.add(childId);
+            if (allActiveChildrenReady()) emitChildren();
+          },
+          (error) => {
+            console.warn(`[family-service] per-child listener error for ${childId}:`, error);
+            readyChildIds.add(childId); // don't block emission
+            if (allActiveChildrenReady()) emitChildren();
+          },
+        );
+        perChildUnsubs.set(childId, unsub);
+      }
+    }
+
+    activeChildIds = newSet;
+
+    if (newChildIds.length === 0) {
+      mergeAndEmit();
+    } else if (allActiveChildrenReady()) {
+      // Removal-only case: all remaining children already have data
+      emitChildren();
     }
   }
 
-  // Declared before the family listener so the family callbacks can tear it down
-  // immediately on family-not-found or family-listener error.
-  let unsubChildren: (() => void) | null = null;
+  // Always-on legacy listener: runs simultaneously with per-child listeners for backfill compatibility
+  unsubLegacy = onSnapshot(
+    query(collection(db, 'users'), where('familyId', '==', familyId), where('role', '==', 'child')),
+    (snap) => {
+      legacyChildren = snap.docs.map((d) => hydrateChildProfile(d.data() as Record<string, unknown>));
+      mergeAndEmit();
+    },
+    (error) => {
+      console.warn('[family-service] legacy children listener error:', error);
+      if (legacyChildren === null) legacyChildren = [];
+      mergeAndEmit();
+    },
+  );
 
-  const unsubFamily = onSnapshot(
+  unsubMembers = onSnapshot(
+    collection(db, 'families', familyId, 'members'),
+    (snap) => {
+      const childMemberIds = snap.docs
+        .map((d) => d.data() as FamilyMember)
+        .filter((m) => m.role === 'child' && m.status === 'active')
+        .map((m) => m.userId);
+
+      if (childMemberIds.length === 0) {
+        teardownPerChildListeners();
+        mergeAndEmit();
+        return;
+      }
+
+      reconcileChildListeners(childMemberIds);
+    },
+    (error) => {
+      console.warn('[family-service] members listener error, falling back to legacy:', error);
+      teardownPerChildListeners();
+      mergeAndEmit();
+    },
+  );
+
+  unsubFamily = onSnapshot(
     doc(db, 'families', familyId),
     (snap) => {
       if (!snap.exists()) {
-        unsubChildren?.();
+        unsubMembers?.();
+        teardownPerChildListeners();
+        unsubLegacy?.();
         onError(new Error('Family not found'));
         return;
       }
@@ -234,36 +464,20 @@ export function subscribeFamilyWithChildren(
         createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : (data.createdAt as Date),
         settings: normalizeFamilySettings(data.settings as Partial<FamilySettings> | undefined),
       };
-      tryEmit();
+      mergeAndEmit();
     },
     (error) => {
-      unsubChildren?.();
-      onError(error);
-    },
-  );
-
-  unsubChildren = onSnapshot(
-    query(collection(db, 'users'), where('familyId', '==', familyId), where('role', '==', 'child')),
-    (snap) => {
-      latestChildren = snap.docs.map((d) => {
-        const cd = d.data();
-        return {
-          ...(cd as Omit<ChildProfile, 'createdAt'>),
-          createdAt: cd.createdAt instanceof Timestamp ? cd.createdAt.toDate() : (cd.createdAt as Date),
-          pendingPayoutPoints: typeof cd.pendingPayoutPoints === 'number' ? cd.pendingPayoutPoints : 0,
-          weeklyAllowancePoints: typeof cd.weeklyAllowancePoints === 'number' ? cd.weeklyAllowancePoints : undefined,
-        };
-      });
-      tryEmit();
-    },
-    (error) => {
-      unsubFamily();
+      unsubMembers?.();
+      teardownPerChildListeners();
+      unsubLegacy?.();
       onError(error);
     },
   );
 
   return () => {
     unsubFamily();
-    unsubChildren?.();
+    unsubMembers?.();
+    teardownPerChildListeners();
+    unsubLegacy?.();
   };
 }
