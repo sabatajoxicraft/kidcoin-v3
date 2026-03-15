@@ -1,5 +1,6 @@
-import { StyleSheet, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
+import { DashboardNotificationBadge } from './DashboardNotificationBadge';
 
 type Props = {
   label: string;
@@ -8,6 +9,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   backgroundColor?: string;
   borderColor?: string;
+  notificationCount?: number;
 };
 
 export function DashboardActionButton({
@@ -17,31 +19,36 @@ export function DashboardActionButton({
   style,
   backgroundColor,
   borderColor,
+  notificationCount = 0,
 }: Props) {
-  if (variant === 'primary') {
-    return (
-      <TouchableOpacity
-        style={[styles.base, styles.primary, { backgroundColor }, style]}
-        onPress={onPress}
-        activeOpacity={0.8}
-      >
-        <ThemedText style={styles.primaryText}>{label}</ThemedText>
-      </TouchableOpacity>
-    );
-  }
-
   return (
-    <TouchableOpacity
-      style={[styles.base, styles.outline, { borderColor }, style]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <ThemedText style={styles.outlineText}>{label}</ThemedText>
-    </TouchableOpacity>
+    <View style={styles.wrapper}>
+      {variant === 'primary' ? (
+        <TouchableOpacity
+          style={[styles.base, styles.primary, { backgroundColor }, style]}
+          onPress={onPress}
+          activeOpacity={0.8}
+        >
+          <ThemedText style={styles.primaryText}>{label}</ThemedText>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={[styles.base, styles.outline, { borderColor }, style]}
+          onPress={onPress}
+          activeOpacity={0.8}
+        >
+          <ThemedText style={styles.outlineText}>{label}</ThemedText>
+        </TouchableOpacity>
+      )}
+      <DashboardNotificationBadge count={notificationCount} style={styles.badge} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    position: 'relative',
+  },
   base: {
     borderRadius: 8,
     paddingVertical: 14,
@@ -62,5 +69,10 @@ const styles = StyleSheet.create({
   outlineText: {
     fontWeight: '600',
     fontSize: 16,
+  },
+  badge: {
+    position: 'absolute',
+    top: 6,
+    right: 12,
   },
 });

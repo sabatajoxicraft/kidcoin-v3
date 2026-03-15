@@ -62,6 +62,7 @@ export default function ChildDashboard() {
   const conversionRate = family?.settings?.pointsConversionRate ?? 0.1;
   const assignedTasks = tasks.filter((task) => task.status === 'assigned');
   const returnedTasks = tasks.filter((task) => task.status === 'returned');
+  const pendingChildPayoutRequests = payoutRequests.filter((request) => request.status === 'pending').length;
   const familyId = displayChild?.familyId ?? family?.id ?? '';
   const childId = displayChild?.id ?? '';
 
@@ -541,7 +542,11 @@ export default function ChildDashboard() {
 
         <TouchableOpacity onPress={() => router.push('/(child)/history')} activeOpacity={0.8}>
           <DashboardCard borderColor={tintColor + '44'}>
-            <DashboardSectionHeader title="📜 Activity & Payouts" meta="View All →" />
+            <DashboardSectionHeader
+              title="📜 Activity & Payouts"
+              meta="View All →"
+              notificationCount={pendingChildPayoutRequests}
+            />
             <ThemedText style={styles.historyHint}>
               {transactions.length > 0
                 ? `Latest ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''} · ${payoutRequests.length} payout request${payoutRequests.length !== 1 ? 's' : ''}`

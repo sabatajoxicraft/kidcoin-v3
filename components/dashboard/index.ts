@@ -2,6 +2,7 @@ export { DashboardSectionHeader } from './DashboardSectionHeader';
 export { DashboardCard } from './DashboardCard';
 export { DashboardActionButton } from './DashboardActionButton';
 export { DashboardBadge } from './DashboardBadge';
+export { DashboardNotificationBadge } from './DashboardNotificationBadge';
 export { DashboardEmptyState } from './DashboardEmptyState';
 export { ChildSummaryCard } from './ChildSummaryCard';
 export { ChildHeroCard } from './ChildHeroCard';

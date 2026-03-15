@@ -79,11 +79,13 @@ export default function ParentDashboard() {
             label="Review Tasks"
             tintColor={tintColor}
             onPress={() => router.push('/(parent)/tasks')}
+            notificationCount={pendingTaskReviews}
           />
           <ParentQuickActionTile
             label="Review Payouts"
             tintColor={tintColor}
             onPress={() => router.push('/(parent)/payouts')}
+            notificationCount={pendingPayoutReviews}
           />
           <ParentQuickActionTile
             label="Create Task"
